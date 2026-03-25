@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Next.js
+frontend/.next/
+frontend/out/
+
+# Python
+backend/__pycache__/
+backend/**/__pycache__/
+backend/.venv/
+backend/.pytest_cache/
+backend/*.egg-info/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+backend/.env
+frontend/.env.local
+
+# Build outputs
+dist/
+build/
+
+# Editor
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Turbo
+.turbo/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test coverage
+coverage/
+.coverage
+htmlcov/
