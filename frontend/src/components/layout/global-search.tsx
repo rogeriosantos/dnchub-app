@@ -4,7 +4,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
-import { Search, X, Loader2, Briefcase, Wrench, Car, Users, ChevronRight } from 'lucide-react';
+import { Search, X, Loader2, Briefcase, Wrench, Car, Users, ChevronRight, PackageOpen } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { cn, matchesSearch } from '@/lib/utils';
@@ -23,6 +23,7 @@ interface SearchResult {
 const QUICK_NAV = [
   { label: 'Tool Inventory', href: '/tools/inventory', icon: <Wrench className='h-4 w-4' /> },
   { label: 'Tool Cases', href: '/tools/cases', icon: <Briefcase className='h-4 w-4' /> },
+  { label: 'Consumables', href: '/tools/consumables', icon: <PackageOpen className='h-4 w-4' /> },
   { label: 'Vehicles', href: '/fleet/vehicles', icon: <Car className='h-4 w-4' /> },
   { label: 'Employees', href: '/fleet/employees', icon: <Users className='h-4 w-4' /> },
 ];

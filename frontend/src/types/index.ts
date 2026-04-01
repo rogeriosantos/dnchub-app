@@ -25,6 +25,8 @@ export type DateFormatPreference = "MM/DD/YYYY" | "DD/MM/YYYY" | "YYYY-MM-DD";
 export type ToolStatus = "available" | "assigned" | "in_repair" | "in_calibration" | "lost" | "retired";
 export type ToolCondition = "new" | "good" | "fair" | "needs_repair" | "damaged";
 export type ToolAssignmentType = "employee" | "vehicle" | "department" | "section" | "location";
+export type ConsumableStatus = "in_stock" | "low_stock" | "out_of_stock" | "ordered" | "retired";
+export type ConsumableUnit = "piece" | "box" | "pair" | "set" | "kg" | "gram" | "liter" | "ml" | "meter" | "roll" | "can" | "bottle" | "tube" | "sheet";
 
 // =============================================================================
 // BASE ENTITIES
@@ -610,6 +612,25 @@ export interface ToolCalibration {
   notes: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface Consumable extends BaseEntity {
+  erpCode: string;
+  name: string;
+  description: string | null;
+  brand: string | null;
+  model: string | null;
+  unit: ConsumableUnit;
+  currentQuantity: number;
+  minimumQuantity: number;
+  reorderQuantity: number | null;
+  status: ConsumableStatus;
+  caseId: string | null;
+  categoryId: string | null;
+  locationId: string | null;
+  purchaseDate: string | null;
+  purchasePrice: string | null;
+  notes: string | null;
 }
 
 // =============================================================================

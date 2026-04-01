@@ -317,3 +317,32 @@ class ToolAssignmentType(str, Enum):
     DEPARTMENT = "department"
     SECTION = "section"
     LOCATION = "location"
+
+
+class ConsumableStatus(str, Enum):
+    """Consumable stock status enumeration."""
+
+    IN_STOCK = "in_stock"
+    LOW_STOCK = "low_stock"
+    OUT_OF_STOCK = "out_of_stock"
+    ORDERED = "ordered"
+    RETIRED = "retired"
+
+
+class ConsumableUnit(str, Enum):
+    """Unit of measure for consumables."""
+
+    PIECE = "piece"
+    BOX = "box"
+    PAIR = "pair"
+    SET = "set"
+    KG = "kg"
+    GRAM = "gram"
+    LITER = "liter"
+    ML = "ml"
+    METER = "meter"
+    ROLL = "roll"
+    CAN = "can"
+    BOTTLE = "bottle"
+    TUBE = "tube"
+    SHEET = "sheet"

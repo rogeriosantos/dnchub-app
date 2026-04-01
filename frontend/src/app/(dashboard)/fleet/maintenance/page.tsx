@@ -3,19 +3,11 @@
 import * as React from "react";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   Select,
   SelectContent,
@@ -41,6 +33,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { DataTable, ColumnDef } from "@/components/ui/data-table";
 import { toast } from "sonner";
 import {
   Plus,
@@ -152,6 +145,13 @@ export default function MaintenancePage() {
     loadData();
   }, []);
 
+  // Build vehicles map
+  const vehiclesMap = React.useMemo(() => {
+    const map: Record<string, Vehicle> = {};
+    vehicles.forEach((v) => { map[v.id] = v; });
+    return map;
+  }, [vehicles]);
+
   // Calculate stats
   const scheduledCount = tasks.filter((t) => t.status === "scheduled").length;
   const inProgressCount = tasks.filter((t) => t.status === "in_progress").length;
@@ -162,20 +162,179 @@ export default function MaintenancePage() {
     .reduce((sum, t) => sum + (Number(t.estimatedCost) || 0), 0);
 
   // Filter tasks
-  const filteredTasks = tasks.filter((task) => {
-    const vehicle = vehicles.find((v) => v.id === task.vehicleId);
+  const filteredTasks = React.useMemo(() => {
+    return tasks.filter((task) => {
+      const vehicle = vehiclesMap[task.vehicleId];
 
-    const searchLower = searchQuery.toLowerCase();
-    const matchesSearch =
-      task.title.toLowerCase().includes(searchLower) ||
-      task.description?.toLowerCase().includes(searchLower) ||
-      vehicle?.registrationPlate.toLowerCase().includes(searchLower);
+      const searchLower = searchQuery.toLowerCase();
+      const matchesSearchResult =
+        task.title.toLowerCase().includes(searchLower) ||
+        task.description?.toLowerCase().includes(searchLower) ||
+        vehicle?.registrationPlate.toLowerCase().includes(searchLower);
 
-    const matchesStatus = statusFilter === "all" || task.status === statusFilter;
-    const matchesType = typeFilter === "all" || task.type === typeFilter;
+      const matchesStatus = statusFilter === "all" || task.status === statusFilter;
+      const matchesType = typeFilter === "all" || task.type === typeFilter;
 
-    return matchesSearch && matchesStatus && matchesType;
-  });
+      return matchesSearchResult && matchesStatus && matchesType;
+    });
+  }, [tasks, vehiclesMap, searchQuery, statusFilter, typeFilter]);
+
+  // Column definitions
+  const columns = React.useMemo<ColumnDef<MaintenanceTask>[]>(
+    () => [
+      {
+        id: "vehicle",
+        header: t("maintenance.table.vehicle"),
+        defaultWidth: 190,
+        sortValue: (row) => vehiclesMap[row.vehicleId]?.registrationPlate ?? "",
+        cell: (row) => {
+          const vehicle = vehiclesMap[row.vehicleId];
+          return vehicle ? (
+            <Link href={`/fleet/vehicles/${vehicle.id}`} className="hover:underline font-medium">
+              {vehicle.registrationPlate}
+            </Link>
+          ) : (
+            <span className="text-muted-foreground">{t("common.unknown")}</span>
+          );
+        },
+      },
+      {
+        id: "type",
+        header: t("maintenance.table.type"),
+        accessorKey: "type",
+        defaultWidth: 120,
+        cell: (row) => (
+          <Badge variant="outline">
+            {t(`maintenance.types.${row.type}`)}
+          </Badge>
+        ),
+      },
+      {
+        id: "description",
+        header: t("maintenance.table.task"),
+        defaultWidth: 200,
+        sortValue: (row) => row.title,
+        cell: (row) => (
+          <div>
+            <Link href={`/fleet/maintenance/${row.id}`} className="font-medium hover:underline block truncate">
+              {row.title}
+            </Link>
+            {row.description && (
+              <p className="text-sm text-muted-foreground truncate max-w-xs">
+                {row.description}
+              </p>
+            )}
+          </div>
+        ),
+      },
+      {
+        id: "scheduledDate",
+        header: t("maintenance.table.scheduledDate"),
+        accessorKey: "scheduledDate",
+        defaultWidth: 130,
+        cell: (row) => (
+          <span>{row.scheduledDate ? formatDate(row.scheduledDate) : t("common.notScheduled")}</span>
+        ),
+      },
+      {
+        id: "status",
+        header: t("maintenance.table.status"),
+        accessorKey: "status",
+        defaultWidth: 120,
+        cell: (row) => {
+          const StatusIcon = maintenanceStatusConfig[row.status].icon;
+          return (
+            <Badge variant={maintenanceStatusConfig[row.status].variant}>
+              <StatusIcon className="mr-1 h-3 w-3" />
+              {t(`maintenance.status.${row.status === "in_progress" ? "inProgress" : row.status}`)}
+            </Badge>
+          );
+        },
+      },
+      {
+        id: "priority",
+        header: "Priority",
+        defaultWidth: 110,
+        sortValue: (row) => (row as MaintenanceTask & { priority?: string }).priority ?? "",
+        cell: (row) => {
+          const priority = (row as MaintenanceTask & { priority?: string }).priority;
+          if (!priority) return <span className="text-muted-foreground">—</span>;
+          return <Badge variant="outline">{priority}</Badge>;
+        },
+      },
+      {
+        id: "cost",
+        header: t("maintenance.table.estimatedCost"),
+        defaultWidth: 100,
+        sortValue: (row) => Number(row.estimatedCost) || 0,
+        cell: (row) => (
+          <span className="tabular-nums">
+            {row.estimatedCost ? formatCurrency(row.estimatedCost) : "—"}
+          </span>
+        ),
+      },
+      {
+        id: "actions",
+        header: "",
+        defaultWidth: 60,
+        enableSorting: false,
+        cell: (row) => (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <MoreHorizontal className="h-4 w-4" />
+                <span className="sr-only">{t("maintenance.actions.openMenu")}</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>{t("common.actions")}</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href={`/fleet/maintenance/${row.id}`}>
+                  <Eye className="mr-2 h-4 w-4" />
+                  {t("maintenance.actions.viewDetails")}
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href={`/fleet/maintenance/${row.id}/edit`}>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  {t("maintenance.actions.editTask")}
+                </Link>
+              </DropdownMenuItem>
+              {row.status === "scheduled" && (
+                <DropdownMenuItem
+                  onClick={() => handleStartTask(row.id)}
+                  disabled={actionLoading === row.id}
+                >
+                  <Clock className="mr-2 h-4 w-4" />
+                  {actionLoading === row.id ? t("maintenance.actions.starting") : t("maintenance.actions.startTask")}
+                </DropdownMenuItem>
+              )}
+              {row.status === "in_progress" && (
+                <DropdownMenuItem
+                  onClick={() => handleCompleteTask(row.id)}
+                  disabled={actionLoading === row.id}
+                >
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  {actionLoading === row.id ? t("maintenance.actions.completing") : t("maintenance.actions.markComplete")}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive"
+                onClick={() => setDeleteDialogTaskId(row.id)}
+                disabled={actionLoading === row.id}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                {actionLoading === row.id ? t("maintenance.actions.deleting") : t("common.delete")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ),
+      },
+    ],
+    [vehiclesMap, t, actionLoading, handleStartTask, handleCompleteTask, setDeleteDialogTaskId]
+  );
 
   // Loading state
   if (isLoading) {
@@ -351,137 +510,14 @@ export default function MaintenancePage() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('maintenance.table.task')}</TableHead>
-                  <TableHead>{t('maintenance.table.vehicle')}</TableHead>
-                  <TableHead>{t('maintenance.table.type')}</TableHead>
-                  <TableHead>{t('maintenance.table.status')}</TableHead>
-                  <TableHead>{t('maintenance.table.scheduledDate')}</TableHead>
-                  <TableHead className="text-right">{t('maintenance.table.estimatedCost')}</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredTasks.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8">
-                      <div className="flex flex-col items-center gap-2">
-                        <Wrench className="h-8 w-8 text-muted-foreground" />
-                        <p className="text-muted-foreground">{t('maintenance.noTasks')}</p>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredTasks.map((task) => {
-                    const vehicle = vehicles.find((v) => v.id === task.vehicleId);
-                    const StatusIcon = maintenanceStatusConfig[task.status].icon;
-                    return (
-                      <TableRow key={task.id}>
-                        <TableCell>
-                          <Link
-                            href={`/fleet/maintenance/${task.id}`}
-                            className="font-medium hover:underline"
-                          >
-                            {task.title}
-                          </Link>
-                          {task.description && (
-                            <p className="text-sm text-muted-foreground truncate max-w-xs">
-                              {task.description}
-                            </p>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {vehicle ? (
-                            <Link
-                              href={`/fleet/vehicles/${vehicle.id}`}
-                              className="hover:underline"
-                            >
-                              {vehicle.registrationPlate}
-                            </Link>
-                          ) : (
-                            t('common.unknown')
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">
-                            {t(`maintenance.types.${task.type}`)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={maintenanceStatusConfig[task.status].variant}>
-                            <StatusIcon className="mr-1 h-3 w-3" />
-                            {t(`maintenance.status.${task.status === 'in_progress' ? 'inProgress' : task.status}`)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {task.scheduledDate ? formatDate(task.scheduledDate) : t('common.notScheduled')}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {task.estimatedCost ? formatCurrency(task.estimatedCost) : "—"}
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreHorizontal className="h-4 w-4" />
-                                <span className="sr-only">{t('maintenance.actions.openMenu')}</span>
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuLabel>{t('common.actions')}</DropdownMenuLabel>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem asChild>
-                                <Link href={`/fleet/maintenance/${task.id}`}>
-                                  <Eye className="mr-2 h-4 w-4" />
-                                  {t('maintenance.actions.viewDetails')}
-                                </Link>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem asChild>
-                                <Link href={`/fleet/maintenance/${task.id}/edit`}>
-                                  <Pencil className="mr-2 h-4 w-4" />
-                                  {t('maintenance.actions.editTask')}
-                                </Link>
-                              </DropdownMenuItem>
-                              {task.status === "scheduled" && (
-                                <DropdownMenuItem
-                                  onClick={() => handleStartTask(task.id)}
-                                  disabled={actionLoading === task.id}
-                                >
-                                  <Clock className="mr-2 h-4 w-4" />
-                                  {actionLoading === task.id ? t('maintenance.actions.starting') : t('maintenance.actions.startTask')}
-                                </DropdownMenuItem>
-                              )}
-                              {task.status === "in_progress" && (
-                                <DropdownMenuItem
-                                  onClick={() => handleCompleteTask(task.id)}
-                                  disabled={actionLoading === task.id}
-                                >
-                                  <CheckCircle className="mr-2 h-4 w-4" />
-                                  {actionLoading === task.id ? t('maintenance.actions.completing') : t('maintenance.actions.markComplete')}
-                                </DropdownMenuItem>
-                              )}
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                className="text-destructive"
-                                onClick={() => setDeleteDialogTaskId(task.id)}
-                                disabled={actionLoading === task.id}
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                {actionLoading === task.id ? t('maintenance.actions.deleting') : t('common.delete')}
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </div>
+          <DataTable
+            tableId="fleet-maintenance"
+            columns={columns}
+            data={filteredTasks}
+            isLoading={isLoading}
+            defaultSortColumn="scheduledDate"
+            rowKey={(row) => row.id}
+          />
         </CardContent>
       </Card>
 

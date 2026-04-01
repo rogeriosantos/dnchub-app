@@ -29,9 +29,10 @@ import {
   Wrench,
   MapPin,
   Eye,
+  PackageOpen,
 } from 'lucide-react';
-import { toolCasesService, toolLocationsService } from '@/lib/api';
-import type { ToolCase, Tool, ToolLocation, ToolStatus, ToolCondition } from '@/types';
+import { toolCasesService, toolLocationsService, consumablesService } from '@/lib/api';
+import type { ToolCase, Tool, ToolLocation, ToolStatus, ToolCondition, Consumable, ConsumableStatus } from '@/types';
 
 const statusConfig: Record<ToolStatus, { labelKey: string; badge: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   available: { labelKey: 'tools.cases.status.available', badge: 'default' },
@@ -50,6 +51,14 @@ const conditionConfig: Record<ToolCondition, { labelKey: string; badge: 'default
   damaged: { labelKey: 'tools.condition.damaged', badge: 'destructive' },
 };
 
+const consumableStatusConfig: Record<ConsumableStatus, { badge: 'default' | 'secondary' | 'destructive' | 'outline'; badgeClass?: string }> = {
+  in_stock:     { badge: 'default',     badgeClass: 'bg-green-600 text-white' },
+  low_stock:    { badge: 'secondary',   badgeClass: 'bg-amber-500 text-white border-transparent' },
+  out_of_stock: { badge: 'destructive' },
+  ordered:      { badge: 'secondary',   badgeClass: 'bg-blue-500 text-white border-transparent' },
+  retired:      { badge: 'outline' },
+};
+
 export default function CaseDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -58,6 +67,7 @@ export default function CaseDetailPage() {
 
   const [toolCase, setToolCase] = React.useState<ToolCase | null>(null);
   const [tools, setTools] = React.useState<Tool[]>([]);
+  const [consumables, setConsumables] = React.useState<Consumable[]>([]);
   const [location, setLocation] = React.useState<ToolLocation | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -72,6 +82,9 @@ export default function CaseDetailPage() {
 
         const toolsData = await toolCasesService.getTools(caseId).catch(() => []);
         setTools(toolsData);
+
+        const consumablesData = await consumablesService.getByCase(caseId).catch(() => []);
+        setConsumables(consumablesData);
 
         if (caseData.locationId) {
           toolLocationsService.getById(caseData.locationId).then(setLocation).catch(() => {});
@@ -256,6 +269,71 @@ export default function CaseDetailPage() {
                       </TableCell>
                     </TableRow>
                   ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Consumables in Case */}
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('tools.cases.consumablesInCase', 'Consumables in this Case')} ({consumables.length})</CardTitle>
+          <CardDescription>{t('tools.cases.consumablesInCaseDesc', 'All consumable items stored in this case')}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {consumables.length === 0 ? (
+            <div className='flex flex-col items-center justify-center py-8'>
+              <PackageOpen className='h-10 w-10 text-muted-foreground' />
+              <p className='mt-2 text-muted-foreground'>{t('tools.cases.noConsumablesInCase', 'No consumables in this case')}</p>
+            </div>
+          ) : (
+            <div className='rounded-md border'>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t('tools.consumables.title', 'Consumable')}</TableHead>
+                    <TableHead>{t('tools.fields.erpCode', 'ERP Code')}</TableHead>
+                    <TableHead>{t('tools.consumables.currentQty', 'Qty')}</TableHead>
+                    <TableHead>{t('common.status', 'Status')}</TableHead>
+                    <TableHead className='w-[50px]'></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {consumables.map((c) => {
+                    const scfg = consumableStatusConfig[c.status];
+                    const isLow = c.currentQuantity <= c.minimumQuantity;
+                    return (
+                      <TableRow key={c.id}>
+                        <TableCell>
+                          <Link href={`/tools/consumables/${c.id}`} className='hover:underline'>
+                            <p className='font-medium'>{c.name}</p>
+                            <p className='text-sm text-muted-foreground capitalize'>{c.unit}</p>
+                          </Link>
+                        </TableCell>
+                        <TableCell className='font-mono text-sm'>{c.erpCode}</TableCell>
+                        <TableCell>
+                          <span className={`font-medium tabular-nums ${isLow ? 'text-amber-600' : ''}`}>
+                            {c.currentQuantity}
+                          </span>
+                          <span className='text-xs text-muted-foreground ml-1'>/ {c.minimumQuantity} min</span>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={scfg.badge} className={scfg.badgeClass}>
+                            {t(`tools.consumables.status.${c.status}`, c.status.replace('_', ' '))}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Button variant='ghost' size='icon' asChild>
+                            <Link href={`/tools/consumables/${c.id}`}>
+                              <Eye className='h-4 w-4' />
+                            </Link>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>

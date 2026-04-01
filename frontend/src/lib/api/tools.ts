@@ -10,6 +10,7 @@ import type {
   ToolLocationResponse,
   ToolAssignmentResponse,
   ToolCalibrationResponse,
+  ConsumableResponse,
   ListParams,
 } from "./types";
 import {
@@ -25,6 +26,8 @@ import {
   transformToolAssignments,
   transformToolCalibration,
   transformToolCalibrations,
+  transformConsumable,
+  transformConsumables,
   toSnakeCase,
 } from "./transformers";
 import type {
@@ -36,6 +39,9 @@ import type {
   ToolCalibration,
   ToolStatus,
   ToolCondition,
+  Consumable,
+  ConsumableStatus,
+  ConsumableUnit,
 } from "@/types";
 
 // List params
@@ -52,6 +58,15 @@ export interface ToolCaseListParams extends ListParams {
   status?: ToolStatus;
   condition?: ToolCondition;
   location_id?: string;
+}
+
+export interface ConsumableListParams extends ListParams {
+  case_id?: string;
+  status?: ConsumableStatus;
+  unit?: ConsumableUnit;
+  category_id?: string;
+  location_id?: string;
+  low_stock_only?: boolean;
 }
 
 export interface ToolAssignmentListParams extends ListParams {
@@ -503,5 +518,68 @@ export const toolCalibrationsService = {
    */
   async delete(id: string): Promise<void> {
     await apiClient.delete(`/tool-calibrations/${id}`);
+  },
+};
+
+// =============================================================================
+// CONSUMABLES
+// =============================================================================
+
+export const consumablesService = {
+  async getAll(params?: ConsumableListParams): Promise<Consumable[]> {
+    const queryParams: Record<string, string | number | boolean | undefined> = {
+      skip: params?.skip,
+      limit: params?.limit,
+      case_id: params?.case_id,
+      status: params?.status,
+      category_id: params?.category_id,
+      location_id: params?.location_id,
+      low_stock_only: params?.low_stock_only,
+    };
+    const response = await apiClient.get<ConsumableResponse[]>("/consumables", { params: queryParams });
+    return transformConsumables(response);
+  },
+
+  async getById(id: string): Promise<Consumable> {
+    const response = await apiClient.get<ConsumableResponse>(`/consumables/${id}`);
+    return transformConsumable(response);
+  },
+
+  async getByCase(caseId: string): Promise<Consumable[]> {
+    const response = await apiClient.get<ConsumableResponse[]>("/consumables", {
+      params: { case_id: caseId },
+    });
+    return transformConsumables(response);
+  },
+
+  async getLowStock(): Promise<Consumable[]> {
+    const response = await apiClient.get<ConsumableResponse[]>("/consumables", {
+      params: { low_stock_only: true },
+    });
+    return transformConsumables(response);
+  },
+
+  async create(data: Partial<Consumable>): Promise<Consumable> {
+    const request = toSnakeCase(data as Record<string, unknown>);
+    const response = await apiClient.post<ConsumableResponse>("/consumables", request);
+    return transformConsumable(response);
+  },
+
+  async update(id: string, data: Partial<Consumable>): Promise<Consumable> {
+    const request = toSnakeCase(data as Record<string, unknown>);
+    const response = await apiClient.put<ConsumableResponse>(`/consumables/${id}`, request);
+    return transformConsumable(response);
+  },
+
+  async adjustQuantity(id: string, delta: number, notes?: string): Promise<Consumable> {
+    const response = await apiClient.post<ConsumableResponse>(
+      `/consumables/${id}/adjust-quantity`,
+      { delta, notes }
+    );
+    return transformConsumable(response);
+  },
+
+  async delete(id: string): Promise<void> {
+    await apiClient.delete(`/consumables/${id}`);
   },
 };

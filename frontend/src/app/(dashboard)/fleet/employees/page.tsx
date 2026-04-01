@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   DropdownMenu,
@@ -28,6 +27,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { DataTable, ColumnDef } from '@/components/ui/data-table';
 import {
   Plus,
   Search,
@@ -39,12 +39,9 @@ import {
   Grid3X3,
   List,
   Phone,
-  Mail,
   Award,
   RefreshCw,
   AlertCircle,
-  ChevronLeft,
-  ChevronRight,
 } from 'lucide-react';
 import { driversService, vehiclesService } from '@/lib/api';
 import { useApi, useMutation, formatApiError } from '@/lib/hooks';
@@ -82,8 +79,6 @@ export default function DriversPage() {
   const [viewMode, setViewMode] = React.useState<'table' | 'grid'>('table');
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
   const [driverToDelete, setDriverToDelete] = React.useState<Driver | null>(null);
-  const [currentPage, setCurrentPage] = React.useState(1);
-  const [itemsPerPage, setItemsPerPage] = React.useState<number | 'all'>(10);
 
   // Fetch drivers from API
   const {
@@ -105,6 +100,15 @@ export default function DriversPage() {
   // Delete mutation
   const deleteMutation = useMutation((id: string) => driversService.delete(id));
 
+  // Build vehicle assignment map: driverId -> vehicle
+  const vehicleByDriverMap = React.useMemo(() => {
+    const map: Record<string, Vehicle> = {};
+    vehicles?.forEach((v) => {
+      if (v.assignedDriverId) map[v.assignedDriverId] = v;
+    });
+    return map;
+  }, [vehicles]);
+
   // Filter drivers
   const filteredDrivers = React.useMemo(() => {
     if (!drivers) return [];
@@ -118,46 +122,6 @@ export default function DriversPage() {
       return matchesQuery && matchesStatus;
     });
   }, [drivers, searchQuery, statusFilter]);
-
-  // Reset to page 1 when filters change
-  React.useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, statusFilter]);
-
-  // Paginated drivers
-  const paginatedDrivers = React.useMemo(() => {
-    if (itemsPerPage === 'all') return filteredDrivers;
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    return filteredDrivers.slice(startIndex, startIndex + itemsPerPage);
-  }, [filteredDrivers, currentPage, itemsPerPage]);
-
-  // Pagination calculations
-  const totalPages = React.useMemo(() => {
-    if (itemsPerPage === 'all') return 1;
-    return Math.ceil(filteredDrivers.length / itemsPerPage);
-  }, [filteredDrivers.length, itemsPerPage]);
-
-  const startIndex = itemsPerPage === 'all' ? 1 : (currentPage - 1) * itemsPerPage + 1;
-  const endIndex = itemsPerPage === 'all' ? filteredDrivers.length : Math.min(currentPage * itemsPerPage, filteredDrivers.length);
-
-  // Handle items per page change
-  const handleItemsPerPageChange = (value: string) => {
-    if (value === 'all') {
-      setItemsPerPage('all');
-    } else {
-      setItemsPerPage(parseInt(value, 10));
-    }
-    setCurrentPage(1);
-  };
-
-  // Get vehicle for a driver
-  const getAssignedVehicle = React.useCallback(
-    (driverId: string) => {
-      if (!vehicles) return undefined;
-      return vehicles.find((v) => v.assignedDriverId === driverId);
-    },
-    [vehicles]
-  );
 
   // Handle delete
   const handleDeleteClick = (driver: Driver) => {
@@ -177,6 +141,115 @@ export default function DriversPage() {
       console.error('Failed to delete driver:', error);
     }
   };
+
+  // Column definitions
+  const columns = React.useMemo<ColumnDef<Driver>[]>(
+    () => [
+      {
+        id: 'firstName',
+        header: t('drivers.table.driver'),
+        defaultWidth: 220,
+        sortValue: (row) => `${row.firstName} ${row.lastName}`,
+        cell: (row) => (
+          <Link href={`/fleet/employees/${row.id}`} className='flex items-center gap-3 hover:underline'>
+            <div className='flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-medium'>
+              {row.firstName[0]}{row.lastName[0]}
+            </div>
+            <div className='min-w-0'>
+              <p className='font-medium truncate'>{row.firstName} {row.lastName}</p>
+              <p className='text-xs text-muted-foreground truncate'>{row.email}</p>
+            </div>
+          </Link>
+        ),
+      },
+      {
+        id: 'employeeId',
+        header: t('drivers.table.contact'),
+        defaultWidth: 130,
+        sortValue: (row) => row.employeeId ?? '',
+        cell: (row) => <span className='font-mono text-sm'>{row.employeeId || 'N/A'}</span>,
+      },
+      {
+        id: 'role',
+        header: 'Role / Position',
+        defaultWidth: 150,
+        sortValue: (row) => (row as Driver & { position?: string }).position ?? '',
+        cell: (row) => (
+          <span className='truncate block text-sm'>
+            {(row as Driver & { position?: string }).position ?? t('common.notAvailable')}
+          </span>
+        ),
+      },
+      {
+        id: 'status',
+        header: t('common.status'),
+        accessorKey: 'status',
+        defaultWidth: 120,
+        cell: (row) => (
+          <Badge variant={driverStatusBadge[row.status]}>{t(`drivers.status.${row.status}`)}</Badge>
+        ),
+      },
+      {
+        id: 'phone',
+        header: 'Phone',
+        accessorKey: 'phone',
+        defaultWidth: 140,
+        cell: (row) => <span className='text-sm'>{row.phone}</span>,
+      },
+      {
+        id: 'licenseExpiry',
+        header: t('drivers.table.license'),
+        defaultWidth: 150,
+        sortValue: (row) => row.licenseExpiry ?? '',
+        cell: (row) => (
+          <div>
+            <p className='font-mono text-sm'>{row.licenseNumber || t('common.notAvailable')}</p>
+            {row.licenseExpiry && (
+              <p className='text-xs text-muted-foreground'>{formatDate(row.licenseExpiry)}</p>
+            )}
+          </div>
+        ),
+      },
+      {
+        id: 'actions',
+        header: '',
+        defaultWidth: 60,
+        enableSorting: false,
+        cell: (row) => (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant='ghost' size='icon'>
+                <MoreHorizontal className='h-4 w-4' />
+                <span className='sr-only'>{t('common.actions')}</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align='end'>
+              <DropdownMenuLabel>{t('common.actions')}</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href={`/fleet/employees/${row.id}`}>
+                  <Eye className='mr-2 h-4 w-4' />
+                  {t('common.details')}
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href={`/fleet/employees/${row.id}/edit`}>
+                  <Pencil className='mr-2 h-4 w-4' />
+                  {t('common.edit')}
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className='text-destructive' onClick={() => handleDeleteClick(row)}>
+                <Trash2 className='mr-2 h-4 w-4' />
+                {t('common.delete')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ),
+      },
+    ],
+    [t, handleDeleteClick]
+  );
 
   // Loading state
   if (isLoadingDrivers) {
@@ -307,138 +380,24 @@ export default function DriversPage() {
         </CardHeader>
         <CardContent>
           {viewMode === 'table' ? (
-            <div className='rounded-md border'>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t('drivers.table.driver')}</TableHead>
-                    <TableHead>{t('drivers.table.contact')}</TableHead>
-                    <TableHead>{t('common.status')}</TableHead>
-                    <TableHead>{t('drivers.table.license')}</TableHead>
-                    <TableHead>{t('drivers.table.assignedVehicle')}</TableHead>
-                    <TableHead>{t('drivers.safetyScore')}</TableHead>
-                    <TableHead className='w-[50px]'></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginatedDrivers.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className='text-center py-8'>
-                        <div className='flex flex-col items-center gap-2'>
-                          <User className='h-8 w-8 text-muted-foreground' />
-                          <p className='text-muted-foreground'>{t('drivers.noDrivers')}</p>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    paginatedDrivers.map((driver) => {
-                      const assignedVehicle = getAssignedVehicle(driver.id);
-                      return (
-                        <TableRow key={driver.id}>
-                          <TableCell>
-                            <Link href={`/fleet/employees/${driver.id}`} className='flex items-center gap-3 hover:underline'>
-                              <div className='flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 font-medium'>
-                                {driver.firstName[0]}
-                                {driver.lastName[0]}
-                              </div>
-                              <div>
-                                <p className='font-medium'>
-                                  {driver.firstName} {driver.lastName}
-                                </p>
-                                <p className='text-sm text-muted-foreground'>ID: {driver.employeeId || 'N/A'}</p>
-                              </div>
-                            </Link>
-                          </TableCell>
-                          <TableCell>
-                            <div className='space-y-1'>
-                              <p className='text-sm flex items-center gap-1'>
-                                <Mail className='h-3 w-3' />
-                                {driver.email}
-                              </p>
-                              <p className='text-sm flex items-center gap-1'>
-                                <Phone className='h-3 w-3' />
-                                {driver.phone}
-                              </p>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={driverStatusBadge[driver.status]}>{t(`drivers.status.${driver.status}`)}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div>
-                              <p className='font-mono text-sm'>{driver.licenseNumber || t('common.notAvailable')}</p>
-                              {driver.licenseExpiry && (
-                                <p className='text-xs text-muted-foreground'>{formatDate(driver.licenseExpiry)}</p>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {assignedVehicle ? (
-                              <Link href={`/fleet/vehicles/${assignedVehicle.id}`} className='hover:underline'>
-                                {assignedVehicle.registrationPlate}
-                              </Link>
-                            ) : (
-                              <span className='text-muted-foreground'>{t('drivers.table.unassigned')}</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {driver.safetyScore !== undefined ? (
-                              <div className='flex items-center gap-2'>
-                                <Progress value={driver.safetyScore} className='w-16 h-2' />
-                                <span className='text-sm tabular-nums'>{driver.safetyScore}%</span>
-                              </div>
-                            ) : (
-                              <span className='text-muted-foreground'>{t('common.notAvailable')}</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant='ghost' size='icon'>
-                                  <MoreHorizontal className='h-4 w-4' />
-                                  <span className='sr-only'>{t('common.actions')}</span>
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align='end'>
-                                <DropdownMenuLabel>{t('common.actions')}</DropdownMenuLabel>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem asChild>
-                                  <Link href={`/fleet/employees/${driver.id}`}>
-                                    <Eye className='mr-2 h-4 w-4' />
-                                    {t('common.details')}
-                                  </Link>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem asChild>
-                                  <Link href={`/fleet/employees/${driver.id}/edit`}>
-                                    <Pencil className='mr-2 h-4 w-4' />
-                                    {t('common.edit')}
-                                  </Link>
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem className='text-destructive' onClick={() => handleDeleteClick(driver)}>
-                                  <Trash2 className='mr-2 h-4 w-4' />
-                                  {t('common.delete')}
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+            <DataTable
+              tableId='fleet-employees'
+              columns={columns}
+              data={filteredDrivers}
+              isLoading={isLoadingDrivers}
+              defaultSortColumn='firstName'
+              rowKey={(row) => row.id}
+            />
           ) : (
             <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-3'>
-              {paginatedDrivers.length === 0 ? (
+              {filteredDrivers.length === 0 ? (
                 <div className='col-span-full flex flex-col items-center justify-center py-12'>
                   <User className='h-12 w-12 text-muted-foreground' />
                   <p className='mt-2 text-muted-foreground'>{t('drivers.noDrivers')}</p>
                 </div>
               ) : (
-                paginatedDrivers.map((driver) => {
-                  const assignedVehicle = getAssignedVehicle(driver.id);
+                filteredDrivers.map((driver) => {
+                  const assignedVehicle = vehicleByDriverMap[driver.id];
                   return (
                     <Link
                       key={driver.id}
@@ -483,68 +442,6 @@ export default function DriversPage() {
                   );
                 })
               )}
-            </div>
-          )}
-
-          {/* Pagination Controls */}
-          {filteredDrivers.length > 0 && (
-            <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mt-4 pt-4 border-t'>
-              <div className='flex items-center gap-2 text-sm text-muted-foreground'>
-                <span>{t('common.showing')}</span>
-                <span className='font-medium text-foreground'>
-                  {filteredDrivers.length === 0 ? 0 : startIndex}-{endIndex}
-                </span>
-                <span>{t('common.of')}</span>
-                <span className='font-medium text-foreground'>{filteredDrivers.length}</span>
-              </div>
-              <div className='flex items-center gap-4'>
-                <div className='flex items-center gap-2'>
-                  <span className='text-sm text-muted-foreground'>{t('common.itemsPerPage')}:</span>
-                  <Select
-                    value={itemsPerPage === 'all' ? 'all' : itemsPerPage.toString()}
-                    onValueChange={handleItemsPerPageChange}
-                  >
-                    <SelectTrigger className='w-[80px] h-8'>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value='10'>10</SelectItem>
-                      <SelectItem value='25'>25</SelectItem>
-                      <SelectItem value='50'>50</SelectItem>
-                      <SelectItem value='100'>100</SelectItem>
-                      <SelectItem value='all'>{t('common.all')}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {itemsPerPage !== 'all' && totalPages > 1 && (
-                  <div className='flex items-center gap-1'>
-                    <Button
-                      variant='outline'
-                      size='icon'
-                      className='h-8 w-8'
-                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                      disabled={currentPage === 1}
-                    >
-                      <ChevronLeft className='h-4 w-4' />
-                    </Button>
-                    <div className='flex items-center gap-1 px-2'>
-                      <span className='text-sm'>
-                        {t('common.page')} <span className='font-medium'>{currentPage}</span> {t('common.of')}{' '}
-                        <span className='font-medium'>{totalPages}</span>
-                      </span>
-                    </div>
-                    <Button
-                      variant='outline'
-                      size='icon'
-                      className='h-8 w-8'
-                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                      disabled={currentPage === totalPages}
-                    >
-                      <ChevronRight className='h-4 w-4' />
-                    </Button>
-                  </div>
-                )}
-              </div>
             </div>
           )}
         </CardContent>

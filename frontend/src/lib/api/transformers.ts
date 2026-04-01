@@ -2,7 +2,7 @@
  * Transform API responses (snake_case) to frontend types (camelCase)
  */
 
-import type { Vehicle, Driver, DashboardMetrics, User, FuelEntry, FuelAnalytics, MaintenanceTask, MaintenanceSchedule, CostCenter, Ticket, TicketStats, FuelPump, FuelPumpDelivery, FuelPumpStats, FuelPumpDeliverySummary, Organization, Notification, NotificationPreferences, Trip, ToolCategory, ToolLocation, ToolCase, Tool, ToolAssignment, ToolCalibration } from "@/types";
+import type { Vehicle, Driver, DashboardMetrics, User, FuelEntry, FuelAnalytics, MaintenanceTask, MaintenanceSchedule, CostCenter, Ticket, TicketStats, FuelPump, FuelPumpDelivery, FuelPumpStats, FuelPumpDeliverySummary, Organization, Notification, NotificationPreferences, Trip, ToolCategory, ToolLocation, ToolCase, Tool, ToolAssignment, ToolCalibration, Consumable } from "@/types";
 import type {
   VehicleApiResponse,
   DriverApiResponse,
@@ -29,6 +29,7 @@ import type {
   ToolResponse,
   ToolAssignmentResponse,
   ToolCalibrationResponse,
+  ConsumableResponse,
 } from "./types";
 
 // Vehicle transformers
@@ -644,6 +645,35 @@ export function transformToolCalibration(api: ToolCalibrationResponse): ToolCali
 
 export function transformToolCalibrations(apiList: ToolCalibrationResponse[]): ToolCalibration[] {
   return apiList.map(transformToolCalibration);
+}
+
+// Consumable transformers
+export function transformConsumable(api: ConsumableResponse): Consumable {
+  return {
+    id: api.id,
+    erpCode: api.erp_code,
+    name: api.name,
+    description: api.description,
+    brand: api.brand,
+    model: api.model,
+    unit: api.unit as Consumable["unit"],
+    currentQuantity: api.current_quantity,
+    minimumQuantity: api.minimum_quantity,
+    reorderQuantity: api.reorder_quantity,
+    status: api.status as Consumable["status"],
+    caseId: api.case_id,
+    categoryId: api.category_id,
+    locationId: api.location_id,
+    purchaseDate: api.purchase_date,
+    purchasePrice: api.purchase_price,
+    notes: api.notes,
+    createdAt: api.created_at,
+    updatedAt: api.updated_at,
+  };
+}
+
+export function transformConsumables(apiList: ConsumableResponse[]): Consumable[] {
+  return apiList.map(transformConsumable);
 }
 
 // Reverse transformers (camelCase to snake_case for requests)

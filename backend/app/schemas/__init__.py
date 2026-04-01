@@ -157,6 +157,13 @@ from app.modules.fleet.schemas.vehicle import (  # noqa: F401
 )
 
 # Tool module schemas
+from app.modules.tools.schemas.consumable import (  # noqa: F401
+    ConsumableAdjustQuantity,
+    ConsumableCreate,
+    ConsumableResponse,
+    ConsumableSummary,
+    ConsumableUpdate,
+)
 from app.modules.tools.schemas.tool import (  # noqa: F401
     ToolCreate,
     ToolResponse,
@@ -322,6 +329,12 @@ __all__ = [
     "TicketSummary",
     "TicketStats",
     "TicketPayRequest",
+    # Consumable
+    "ConsumableCreate",
+    "ConsumableUpdate",
+    "ConsumableResponse",
+    "ConsumableSummary",
+    "ConsumableAdjustQuantity",
     # Tool
     "ToolCreate",
     "ToolUpdate",

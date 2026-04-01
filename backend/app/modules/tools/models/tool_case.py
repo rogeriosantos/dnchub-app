@@ -47,6 +47,10 @@ class ToolCase(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
         back_populates="case",
         lazy="noload",
     )
+    consumables: Mapped[list["Consumable"]] = relationship(  # type: ignore[name-defined]
+        back_populates="case",
+        lazy="noload",
+    )
     location: Mapped["ToolLocation | None"] = relationship(  # type: ignore[name-defined]
         lazy="noload",
     )

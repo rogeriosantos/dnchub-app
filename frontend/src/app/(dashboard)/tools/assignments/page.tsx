@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Dialog,
@@ -34,14 +33,13 @@ import {
   RefreshCw,
   AlertCircle,
   ClipboardCheck,
-  ChevronLeft,
-  ChevronRight,
   RotateCcw,
   Plus,
   Save,
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { SearchableSelect } from '@/components/ui/searchable-select';
+import { DataTable, ColumnDef } from '@/components/ui/data-table';
 import { toolAssignmentsService, toolsService, toolCasesService, driversService, vehiclesService } from '@/lib/api';
 import { useApi, useMutation, formatApiError } from '@/lib/hooks';
 import { formatDate } from '@/lib/utils';
@@ -72,16 +70,14 @@ export default function ToolAssignmentsPage() {
   const [assignmentToReturn, setAssignmentToReturn] = React.useState<ToolAssignment | null>(null);
   const [returnChecklist, setReturnChecklist] = React.useState<Record<string, { checked: boolean; condition: ToolCondition }>>({});
   const [caseToolsForReturn, setCaseToolsForReturn] = React.useState<Tool[]>([]);
-  const [currentPage, setCurrentPage] = React.useState(1);
-  const itemsPerPage = 25;
 
   // Assign dialog state
   const [assignDialogOpen, setAssignDialogOpen] = React.useState(false);
   const [assignError, setAssignError] = React.useState<string | null>(null);
   const [assignItemFilter, setAssignItemFilter] = React.useState<'all' | 'tool' | 'case'>('all');
   const [assignForm, setAssignForm] = React.useState({
-    selectedItemId: '',  // combined tool or case id
-    selectedItemType: '' as '' | 'tool' | 'case',  // derived from selection
+    selectedItemId: '',
+    selectedItemType: '' as '' | 'tool' | 'case',
     assignmentType: 'employee' as ToolAssignmentType,
     assignedToEmployeeId: '',
     assignedToVehicleId: '',
@@ -191,7 +187,6 @@ export default function ToolAssignmentsPage() {
         disabled: !isAvailable,
       };
     }).sort((a, b) => {
-      // Available first
       if (a.disabled && !b.disabled) return 1;
       if (!a.disabled && b.disabled) return -1;
       return a.label.localeCompare(b.label);
@@ -283,7 +278,22 @@ export default function ToolAssignmentsPage() {
     [tools, cases]
   );
 
-  const getAssignedTo = (assignment: ToolAssignment) => {
+  const getItemErpCode = React.useCallback(
+    (assignment: ToolAssignment) => {
+      if (assignment.toolId) {
+        const tool = tools?.find((t) => t.id === assignment.toolId);
+        return tool?.erpCode ?? '';
+      }
+      if (assignment.caseId) {
+        const toolCase = cases?.find((c) => c.id === assignment.caseId);
+        return toolCase?.erpCode ?? '';
+      }
+      return '';
+    },
+    [tools, cases]
+  );
+
+  const getAssignedTo = React.useCallback((assignment: ToolAssignment) => {
     if (assignment.assignedToEmployeeId) {
       const emp = employees?.find((e) => e.id === assignment.assignedToEmployeeId);
       if (emp) return `${emp.firstName} ${emp.lastName}`;
@@ -297,7 +307,7 @@ export default function ToolAssignmentsPage() {
     if (assignment.department) return `${t('tools.assignment.department', 'Dept')}: ${assignment.department}`;
     if (assignment.section) return `${t('tools.assignment.section', 'Section')}: ${assignment.section}`;
     return '—';
-  };
+  }, [employees, vehicles, t]);
 
   const normalizeText = (text: string) =>
     text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -317,11 +327,6 @@ export default function ToolAssignmentsPage() {
       );
     });
   }, [assignments, typeFilter, searchQuery, getItemName]);
-
-  React.useEffect(() => { setCurrentPage(1); }, [searchQuery, viewFilter, typeFilter]);
-
-  const totalPages = Math.ceil(filteredAssignments.length / itemsPerPage);
-  const paginated = filteredAssignments.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const openReturnDialog = async (assignment: ToolAssignment) => {
     setAssignmentToReturn(assignment);
@@ -387,7 +392,6 @@ export default function ToolAssignmentsPage() {
   const handleAssignSubmit = async () => {
     setAssignError(null);
 
-    // Validate item selection
     if (!assignForm.selectedItemId) {
       setAssignError(t('tools.assignments.selectToolOrCase', 'Please select a tool or case'));
       return;
@@ -415,7 +419,6 @@ export default function ToolAssignmentsPage() {
       notes: assignForm.notes || null,
     };
 
-    // Derive toolId or caseId from selectedItemId
     if (assignForm.selectedItemType === 'tool') {
       payload.toolId = assignForm.selectedItemId;
     } else {
@@ -441,6 +444,91 @@ export default function ToolAssignmentsPage() {
       setAssignError(err instanceof Error ? err.message : 'Failed to create assignment');
     }
   };
+
+  const columns = React.useMemo((): ColumnDef<ToolAssignment>[] => [
+    {
+      id: 'toolCase',
+      header: t('tools.fields.tool', 'Tool / Case'),
+      defaultWidth: 200,
+      sortValue: (a) => getItemName(a),
+      cell: (assignment) => (
+        <div>
+          <p className='font-medium'>{getItemName(assignment)}</p>
+          {assignment.toolId && (
+            <Link href={`/tools/inventory/${assignment.toolId}`} className='text-xs text-muted-foreground hover:underline'>
+              {getItemErpCode(assignment)}
+            </Link>
+          )}
+          {assignment.caseId && (
+            <p className='text-xs text-muted-foreground'>{getItemErpCode(assignment)}</p>
+          )}
+        </div>
+      ),
+    },
+    {
+      id: 'assignedTo',
+      header: t('tools.fields.assignedTo', 'Assigned To'),
+      defaultWidth: 180,
+      sortValue: (a) => getAssignedTo(a),
+      cell: (assignment) => (
+        <div>
+          <p className='text-sm font-medium'>{getAssignedTo(assignment)}</p>
+          <p className='text-xs text-muted-foreground capitalize'>{assignment.assignmentType}</p>
+        </div>
+      ),
+    },
+    {
+      id: 'checkedOutAt',
+      header: t('tools.fields.assignedAt', 'Checked Out'),
+      accessorKey: 'assignedAt',
+      defaultWidth: 130,
+      cell: (assignment) => <span className='text-sm'>{formatDate(assignment.assignedAt)}</span>,
+    },
+    {
+      id: 'expectedReturnDate',
+      header: t('tools.fields.returnedAt', 'Returned'),
+      defaultWidth: 130,
+      sortValue: (a) => a.returnedAt ?? '',
+      cell: (assignment) => (
+        assignment.returnedAt ? (
+          <span className='text-sm'>{formatDate(assignment.returnedAt)}</span>
+        ) : (
+          <Badge variant='default'>{t('tools.fields.active', 'Active')}</Badge>
+        )
+      ),
+    },
+    {
+      id: 'status',
+      header: t('common.status', 'Status'),
+      defaultWidth: 100,
+      sortValue: (a) => a.returnedAt ? 'returned' : 'active',
+      cell: (assignment) => (
+        assignment.conditionAtCheckout ? (
+          <Badge variant={conditionConfig[assignment.conditionAtCheckout].badge}>
+            {t(conditionConfig[assignment.conditionAtCheckout].labelKey)}
+          </Badge>
+        ) : <span>—</span>
+      ),
+    },
+    {
+      id: 'actions',
+      header: '',
+      defaultWidth: 60,
+      enableSorting: false,
+      cell: (assignment) => (
+        !assignment.returnedAt ? (
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={() => openReturnDialog(assignment)}
+          >
+            <RotateCcw className='mr-1 h-3 w-3' />
+            {t('tools.assignments.return', 'Return')}
+          </Button>
+        ) : null
+      ),
+    },
+  ], [t, getItemName, getItemErpCode, getAssignedTo, openReturnDialog]);
 
   if (isLoading) {
     return (
@@ -535,103 +623,14 @@ export default function ToolAssignmentsPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className='rounded-md border'>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('tools.fields.tool', 'Tool / Case')}</TableHead>
-                  <TableHead>{t('tools.fields.assignmentType', 'Type')}</TableHead>
-                  <TableHead>{t('tools.fields.assignedTo', 'Assigned To')}</TableHead>
-                  <TableHead>{t('tools.fields.assignedAt', 'Checked Out')}</TableHead>
-                  <TableHead>{t('tools.fields.returnedAt', 'Returned')}</TableHead>
-                  <TableHead>{t('tools.fields.conditionOut', 'Cond. Out')}</TableHead>
-                  <TableHead>{t('tools.fields.conditionReturn', 'Cond. Return')}</TableHead>
-                  <TableHead className='w-[80px]'></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {paginated.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className='text-center py-8'>
-                      <div className='flex flex-col items-center gap-2'>
-                        <ClipboardCheck className='h-8 w-8 text-muted-foreground' />
-                        <p className='text-muted-foreground'>{t('tools.assignments.noAssignments', 'No assignments found')}</p>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  paginated.map((assignment) => (
-                    <TableRow key={assignment.id}>
-                      <TableCell>
-                        <p className='font-medium'>{getItemName(assignment)}</p>
-                        {assignment.toolId && (
-                          <Link href={`/tools/inventory/${assignment.toolId}`} className='text-xs text-muted-foreground hover:underline'>
-                            {t('common.viewDetails', 'View Details')}
-                          </Link>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant='outline' className='capitalize'>{assignment.assignmentType}</Badge>
-                      </TableCell>
-                      <TableCell className='text-sm'>{getAssignedTo(assignment)}</TableCell>
-                      <TableCell>{formatDate(assignment.assignedAt)}</TableCell>
-                      <TableCell>
-                        {assignment.returnedAt ? (
-                          formatDate(assignment.returnedAt)
-                        ) : (
-                          <Badge variant='default'>{t('tools.fields.active', 'Active')}</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {assignment.conditionAtCheckout ? (
-                          <Badge variant={conditionConfig[assignment.conditionAtCheckout].badge}>
-                            {t(conditionConfig[assignment.conditionAtCheckout].labelKey)}
-                          </Badge>
-                        ) : '—'}
-                      </TableCell>
-                      <TableCell>
-                        {assignment.conditionAtReturn ? (
-                          <Badge variant={conditionConfig[assignment.conditionAtReturn].badge}>
-                            {t(conditionConfig[assignment.conditionAtReturn].labelKey)}
-                          </Badge>
-                        ) : '—'}
-                      </TableCell>
-                      <TableCell>
-                        {!assignment.returnedAt && (
-                          <Button
-                            variant='outline'
-                            size='sm'
-                            onClick={() => openReturnDialog(assignment)}
-                          >
-                            <RotateCcw className='mr-1 h-3 w-3' />
-                            {t('tools.assignments.return', 'Return')}
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-
-          {/* Pagination */}
-          {filteredAssignments.length > itemsPerPage && (
-            <div className='flex items-center justify-between mt-4 pt-4 border-t'>
-              <span className='text-sm text-muted-foreground'>
-                {(currentPage - 1) * itemsPerPage + 1}-{Math.min(currentPage * itemsPerPage, filteredAssignments.length)} {t('common.of', 'of')} {filteredAssignments.length}
-              </span>
-              <div className='flex items-center gap-1'>
-                <Button variant='outline' size='icon' className='h-8 w-8' onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1}>
-                  <ChevronLeft className='h-4 w-4' />
-                </Button>
-                <span className='text-sm px-2'>{currentPage} / {totalPages}</span>
-                <Button variant='outline' size='icon' className='h-8 w-8' onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
-                  <ChevronRight className='h-4 w-4' />
-                </Button>
-              </div>
-            </div>
-          )}
+          <DataTable
+            tableId='tools-assignments'
+            columns={columns}
+            data={filteredAssignments}
+            rowKey={(row) => row.id}
+            defaultSortColumn='checkedOutAt'
+            defaultSortDir='desc'
+          />
         </CardContent>
       </Card>
 

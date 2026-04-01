@@ -11,6 +11,8 @@ from app.shared.models.enums import (
     AlertSeverity,
     AlertType,
     BudgetPeriod,
+    ConsumableStatus,
+    ConsumableUnit,
     DateFormatPreference,
     DistanceUnit,
     DocumentStatus,
@@ -35,6 +37,8 @@ from app.shared.models.enums import (
     ToolAssignmentType,
     ToolCondition,
     ToolStatus,
+    ConsumableStatus,
+    ConsumableUnit,
     TripStatus,
     UserRole,
     VehicleStatus,
@@ -56,6 +60,7 @@ from app.modules.fleet.models.ticket import Ticket
 from app.modules.fleet.models.vehicle import Vehicle, VehicleGroup, VehicleGroupMember
 
 # Tool module models
+from app.modules.tools.models.consumable import Consumable
 from app.modules.tools.models.tool import Tool
 from app.modules.tools.models.tool_assignment import ToolAssignment
 from app.modules.tools.models.tool_calibration import ToolCalibration
@@ -88,6 +93,7 @@ __all__ = [
     "Geofence",
     "GpsAlert",
     # Tools
+    "Consumable",
     "Tool",
     "ToolAssignment",
     "ToolCalibration",

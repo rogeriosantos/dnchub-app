@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 
 from app.modules.tools.api import (
+    consumables,
     tool_calibrations,
     tool_cases,
     tool_categories,
@@ -19,3 +20,4 @@ tools_router.include_router(tool_cases.router, prefix="/tool-cases", tags=["Tool
 tools_router.include_router(tools.router, prefix="/tools", tags=["Tools"])
 tools_router.include_router(tool_assignments.router, prefix="/tool-assignments", tags=["Tool Assignments"])
 tools_router.include_router(tool_calibrations.router, prefix="/tool-calibrations", tags=["Tool Calibrations"])
+tools_router.include_router(consumables.router, prefix="/consumables", tags=["Consumables"])

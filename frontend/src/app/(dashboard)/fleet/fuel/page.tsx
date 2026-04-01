@@ -9,14 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -41,6 +33,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { DataTable, ColumnDef } from "@/components/ui/data-table";
 import {
   Plus,
   Search,
@@ -53,8 +46,6 @@ import {
   Droplets,
   Calendar,
   AlertCircle,
-  ChevronLeft,
-  ChevronRight,
 } from "lucide-react";
 import { fuelService, vehiclesService, driversService } from "@/lib/api";
 import { formatDate, formatCurrency, formatFuelVolume, formatDistance, matchesSearch } from "@/lib/utils";
@@ -84,8 +75,6 @@ export default function FuelPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
   const [entryToDelete, setEntryToDelete] = React.useState<string | null>(null);
   const [isDeleting, setIsDeleting] = React.useState(false);
-  const [currentPage, setCurrentPage] = React.useState(1);
-  const [pageSize, setPageSize] = React.useState(10);
 
   // Load data
   React.useEffect(() => {
@@ -114,9 +103,18 @@ export default function FuelPage() {
     loadData();
   }, []);
 
-  // Helper functions
-  const getVehicle = (vehicleId: string) => vehicles.find((v) => v.id === vehicleId);
-  const getDriver = (driverId?: string) => driverId ? drivers.find((d) => d.id === driverId) : null;
+  // Build lookup maps
+  const vehiclesMap = React.useMemo(() => {
+    const map: Record<string, Vehicle> = {};
+    vehicles.forEach((v) => { map[v.id] = v; });
+    return map;
+  }, [vehicles]);
+
+  const driversMap = React.useMemo(() => {
+    const map: Record<string, Driver> = {};
+    drivers.forEach((d) => { map[d.id] = d; });
+    return map;
+  }, [drivers]);
 
   // Calculate stats (with defensive handling for null/undefined values)
   const totalVolume = entries.reduce((sum, entry) => sum + (Number(entry.volume) || 0), 0);
@@ -130,53 +128,44 @@ export default function FuelPage() {
   const costThisMonth = entriesThisMonth.reduce((sum, entry) => sum + (Number(entry.totalCost) || 0), 0);
 
   // Filter entries
-  const filteredEntries = entries.filter((entry) => {
-    const vehicle = getVehicle(entry.vehicleId);
-    const driver = getDriver(entry.driverId);
+  const filteredEntries = React.useMemo(() => {
+    return entries.filter((entry) => {
+      const vehicle = vehiclesMap[entry.vehicleId];
+      const driver = entry.driverId ? driversMap[entry.driverId] : null;
 
-    const matchesQuery = matchesSearch(
-      [vehicle?.registrationPlate, driver?.firstName, driver?.lastName, entry.station],
-      searchQuery
-    );
+      const matchesQuery = matchesSearch(
+        [vehicle?.registrationPlate, driver?.firstName, driver?.lastName, entry.station],
+        searchQuery
+      );
 
-    const matchesFuelType = fuelTypeFilter === "all" || entry.fuelType === fuelTypeFilter;
+      const matchesFuelType = fuelTypeFilter === "all" || entry.fuelType === fuelTypeFilter;
 
-    // Date filtering
-    let matchesDate = true;
-    if (dateRange !== "all") {
-      const entryDate = new Date(entry.date);
-      const now = new Date();
-      const daysDiff = Math.floor((now.getTime() - entryDate.getTime()) / (1000 * 60 * 60 * 24));
+      // Date filtering
+      let matchesDate = true;
+      if (dateRange !== "all") {
+        const entryDate = new Date(entry.date);
+        const now = new Date();
+        const daysDiff = Math.floor((now.getTime() - entryDate.getTime()) / (1000 * 60 * 60 * 24));
 
-      switch (dateRange) {
-        case "today":
-          matchesDate = daysDiff === 0;
-          break;
-        case "week":
-          matchesDate = daysDiff <= 7;
-          break;
-        case "month":
-          matchesDate = daysDiff <= 30;
-          break;
-        case "quarter":
-          matchesDate = daysDiff <= 90;
-          break;
+        switch (dateRange) {
+          case "today":
+            matchesDate = daysDiff === 0;
+            break;
+          case "week":
+            matchesDate = daysDiff <= 7;
+            break;
+          case "month":
+            matchesDate = daysDiff <= 30;
+            break;
+          case "quarter":
+            matchesDate = daysDiff <= 90;
+            break;
+        }
       }
-    }
 
-    return matchesQuery && matchesFuelType && matchesDate;
-  });
-
-  // Pagination calculations
-  const totalPages = Math.ceil(filteredEntries.length / pageSize);
-  const startIndex = (currentPage - 1) * pageSize;
-  const endIndex = startIndex + pageSize;
-  const paginatedEntries = filteredEntries.slice(startIndex, endIndex);
-
-  // Reset to first page when filters change
-  React.useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, fuelTypeFilter, dateRange]);
+      return matchesQuery && matchesFuelType && matchesDate;
+    });
+  }, [entries, vehiclesMap, driversMap, searchQuery, fuelTypeFilter, dateRange]);
 
   // Get unique fuel types from entries
   const fuelTypes = Array.from(new Set(entries.map((e) => e.fuelType)));
@@ -197,6 +186,143 @@ export default function FuelPage() {
       setIsDeleting(false);
     }
   };
+
+  // Column definitions
+  const columns = React.useMemo<ColumnDef<FuelEntry>[]>(
+    () => [
+      {
+        id: "vehicle",
+        header: t("fuel.table.vehicle"),
+        defaultWidth: 190,
+        sortValue: (row) => vehiclesMap[row.vehicleId]?.registrationPlate ?? "",
+        cell: (row) => {
+          const vehicle = vehiclesMap[row.vehicleId];
+          return vehicle ? (
+            <Link href={`/fleet/vehicles/${vehicle.id}`} className="hover:underline block">
+              <p className="font-medium truncate">{vehicle.registrationPlate}</p>
+              <p className="text-xs text-muted-foreground truncate">
+                {vehicle.make} {vehicle.model}
+              </p>
+            </Link>
+          ) : (
+            <span className="text-muted-foreground">{t("common.unknown")}</span>
+          );
+        },
+      },
+      {
+        id: "date",
+        header: t("fuel.table.date"),
+        accessorKey: "date",
+        defaultWidth: 120,
+        cell: (row) => <span>{formatDate(row.date)}</span>,
+      },
+      {
+        id: "quantity",
+        header: t("fuel.table.volume"),
+        defaultWidth: 110,
+        sortValue: (row) => Number(row.volume),
+        cell: (row) => (
+          <span className="tabular-nums">{formatFuelVolume(row.volume)}</span>
+        ),
+      },
+      {
+        id: "pricePerUnit",
+        header: t("fuel.table.pricePerLiter"),
+        defaultWidth: 110,
+        sortValue: (row) => Number(row.pricePerUnit),
+        cell: (row) => (
+          <span className="tabular-nums">{formatCurrency(row.pricePerUnit)}</span>
+        ),
+      },
+      {
+        id: "totalCost",
+        header: t("fuel.table.totalCost"),
+        defaultWidth: 110,
+        sortValue: (row) => Number(row.totalCost),
+        cell: (row) => (
+          <span className="tabular-nums font-medium">{formatCurrency(row.totalCost)}</span>
+        ),
+      },
+      {
+        id: "mileage",
+        header: t("fuel.table.odometer"),
+        defaultWidth: 110,
+        sortValue: (row) => row.odometer,
+        cell: (row) => (
+          <span className="tabular-nums">{formatDistance(row.odometer)}</span>
+        ),
+      },
+      {
+        id: "fuelType",
+        header: t("fuel.table.fuelType"),
+        accessorKey: "fuelType",
+        defaultWidth: 100,
+        cell: (row) => (
+          <Badge
+            variant="secondary"
+            className={fuelTypeColors[row.fuelType] || ""}
+          >
+            {t(`fuel.fuelTypes.${row.fuelType}`)}
+          </Badge>
+        ),
+      },
+      {
+        id: "source",
+        header: "Source",
+        defaultWidth: 110,
+        sortValue: (row) => row.station ?? "",
+        cell: (row) => (
+          <span className="text-sm truncate block">
+            {row.station || t("common.notAvailable")}
+          </span>
+        ),
+      },
+      {
+        id: "actions",
+        header: "",
+        defaultWidth: 60,
+        enableSorting: false,
+        cell: (row) => (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <MoreHorizontal className="h-4 w-4" />
+                <span className="sr-only">{t("common.openMenu")}</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>{t("common.actions")}</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href={`/fleet/fuel/${row.id}`}>
+                  <Eye className="mr-2 h-4 w-4" />
+                  {t("fuel.viewEntry")}
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href={`/fleet/fuel/${row.id}/edit`}>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  {t("fuel.editEntry")}
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive"
+                onClick={() => {
+                  setEntryToDelete(row.id);
+                  setDeleteDialogOpen(true);
+                }}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                {t("common.delete")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ),
+      },
+    ],
+    [vehiclesMap, t, setEntryToDelete, setDeleteDialogOpen]
+  );
 
   if (isLoading) {
     return (
@@ -356,183 +482,15 @@ export default function FuelPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('fuel.table.date')}</TableHead>
-                  <TableHead>{t('fuel.table.vehicle')}</TableHead>
-                  <TableHead>{t('fuel.table.driver')}</TableHead>
-                  <TableHead>{t('fuel.table.fuelType')}</TableHead>
-                  <TableHead>{t('fuel.table.station')}</TableHead>
-                  <TableHead className="text-right">{t('fuel.table.volume')}</TableHead>
-                  <TableHead className="text-right">{t('fuel.table.pricePerLiter')}</TableHead>
-                  <TableHead className="text-right">{t('fuel.table.totalCost')}</TableHead>
-                  <TableHead className="text-right">{t('fuel.table.odometer')}</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {paginatedEntries.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={10} className="text-center py-8">
-                      <div className="flex flex-col items-center gap-2">
-                        <Fuel className="h-8 w-8 text-muted-foreground" />
-                        <p className="text-muted-foreground">{t('fuel.noEntries')}</p>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  paginatedEntries.map((entry) => {
-                    const vehicle = getVehicle(entry.vehicleId);
-                    const driver = getDriver(entry.driverId);
-                    return (
-                      <TableRow key={entry.id}>
-                        <TableCell>{formatDate(entry.date)}</TableCell>
-                        <TableCell>
-                          {vehicle ? (
-                            <Link
-                              href={`/fleet/vehicles/${vehicle.id}`}
-                              className="font-medium hover:underline"
-                            >
-                              {vehicle.registrationPlate}
-                            </Link>
-                          ) : (
-                            t('common.unknown')
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {driver ? (
-                            <Link
-                              href={`/fleet/employees/${driver.id}`}
-                              className="hover:underline"
-                            >
-                              {driver.firstName} {driver.lastName}
-                            </Link>
-                          ) : (
-                            t('common.notAvailable')
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant="secondary"
-                            className={fuelTypeColors[entry.fuelType] || ""}
-                          >
-                            {t(`fuel.fuelTypes.${entry.fuelType}`)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{entry.station || t('common.notAvailable')}</TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {formatFuelVolume(entry.volume)}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {formatCurrency(entry.pricePerUnit)}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums font-medium">
-                          {formatCurrency(entry.totalCost)}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {formatDistance(entry.odometer)}
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreHorizontal className="h-4 w-4" />
-                                <span className="sr-only">{t('common.openMenu')}</span>
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuLabel>{t('common.actions')}</DropdownMenuLabel>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem asChild>
-                                <Link href={`/fleet/fuel/${entry.id}`}>
-                                  <Eye className="mr-2 h-4 w-4" />
-                                  {t('fuel.viewEntry')}
-                                </Link>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem asChild>
-                                <Link href={`/fleet/fuel/${entry.id}/edit`}>
-                                  <Pencil className="mr-2 h-4 w-4" />
-                                  {t('fuel.editEntry')}
-                                </Link>
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                className="text-destructive"
-                                onClick={() => {
-                                  setEntryToDelete(entry.id);
-                                  setDeleteDialogOpen(true);
-                                }}
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                {t('common.delete')}
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </div>
-
-          {/* Pagination */}
-          {filteredEntries.length > 0 && (
-            <div className="flex items-center justify-between pt-4">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <span>
-                  {t('common.showing')} {startIndex + 1}-{Math.min(endIndex, filteredEntries.length)} {t('common.of')} {filteredEntries.length} {t('common.entries')}
-                </span>
-                <Select
-                  value={pageSize.toString()}
-                  onValueChange={(value) => {
-                    setPageSize(Number(value));
-                    setCurrentPage(1);
-                  }}
-                >
-                  <SelectTrigger className="w-[70px] h-8">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="25">25</SelectItem>
-                    <SelectItem value="50">50</SelectItem>
-                    <SelectItem value="100">100</SelectItem>
-                  </SelectContent>
-                </Select>
-                <span>{t('common.perPage')}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  {t('common.previous')}
-                </Button>
-                <div className="flex items-center gap-1 text-sm">
-                  <span>{t('common.page')}</span>
-                  <span className="font-medium">{currentPage}</span>
-                  <span>{t('common.of')}</span>
-                  <span className="font-medium">{totalPages}</span>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                >
-                  {t('common.next')}
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          )}
+          <DataTable
+            tableId="fleet-fuel"
+            columns={columns}
+            data={filteredEntries}
+            isLoading={isLoading}
+            defaultSortColumn="date"
+            defaultSortDir="desc"
+            rowKey={(row) => row.id}
+          />
         </CardContent>
       </Card>
 

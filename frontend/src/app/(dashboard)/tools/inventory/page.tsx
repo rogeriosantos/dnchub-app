@@ -7,7 +7,6 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   DropdownMenu,
@@ -39,13 +38,9 @@ import {
   List,
   RefreshCw,
   AlertCircle,
-  ChevronLeft,
-  ChevronRight,
   Shield,
-  ArrowUp,
-  ArrowDown,
-  ArrowUpDown,
 } from 'lucide-react';
+import { DataTable, ColumnDef } from '@/components/ui/data-table';
 import { toolsService, toolCategoriesService, toolAssignmentsService, driversService, vehiclesService } from '@/lib/api';
 import { useApi, useMutation, formatApiError } from '@/lib/hooks';
 import { formatDate, matchesSearch } from '@/lib/utils';
@@ -77,8 +72,6 @@ export default function ToolInventoryPage() {
   const [viewMode, setViewMode] = React.useState<'table' | 'grid'>('table');
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
   const [toolToDelete, setToolToDelete] = React.useState<Tool | null>(null);
-  const [currentPage, setCurrentPage] = React.useState(1);
-  const [itemsPerPage, setItemsPerPage] = React.useState<number | 'all'>(25);
 
   const {
     data: tools,
@@ -183,54 +176,7 @@ export default function ToolInventoryPage() {
       const matchesCategory = categoryFilter === 'all' || tool.categoryId === categoryFilter;
       return matchesQuery && matchesStatus && matchesCondition && matchesCategory;
     });
-  }, [effectiveTools, searchQuery, statusFilter, conditionFilter]);
-
-  const [sortKey, setSortKey] = React.useState('');
-  const [sortDir, setSortDir] = React.useState<'asc' | 'desc'>('asc');
-
-  const handleSort = (key: string) => {
-    if (sortKey === key) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortKey(key);
-      setSortDir('asc');
-    }
-  };
-
-  const sortedTools = React.useMemo(() => {
-    if (!sortKey) return filteredTools;
-    return [...filteredTools].sort((a, b) => {
-      let aVal: string;
-      let bVal: string;
-      if (sortKey === 'categoryName') {
-        aVal = getCategoryName(a.categoryId);
-        bVal = getCategoryName(b.categoryId);
-      } else if (sortKey === 'nextCalibrationDate') {
-        aVal = a.nextCalibrationDate ?? '';
-        bVal = b.nextCalibrationDate ?? '';
-      } else {
-        aVal = String((a as Record<string, unknown>)[sortKey] ?? '');
-        bVal = String((b as Record<string, unknown>)[sortKey] ?? '');
-      }
-      return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
-    });
-  }, [filteredTools, sortKey, sortDir, getCategoryName]);
-
-  React.useEffect(() => { setCurrentPage(1); }, [searchQuery, statusFilter, conditionFilter, categoryFilter]);
-
-  const paginatedTools = React.useMemo(() => {
-    if (itemsPerPage === 'all') return sortedTools;
-    const start = (currentPage - 1) * itemsPerPage;
-    return sortedTools.slice(start, start + itemsPerPage);
-  }, [sortedTools, currentPage, itemsPerPage]);
-
-  const totalPages = React.useMemo(() => {
-    if (itemsPerPage === 'all') return 1;
-    return Math.ceil(filteredTools.length / itemsPerPage);
-  }, [filteredTools.length, itemsPerPage]);
-
-  const startIndex = itemsPerPage === 'all' ? 1 : (currentPage - 1) * itemsPerPage + 1;
-  const endIndex = itemsPerPage === 'all' ? filteredTools.length : Math.min(currentPage * itemsPerPage, filteredTools.length);
+  }, [effectiveTools, searchQuery, statusFilter, conditionFilter, categoryFilter]);
 
   const handleDeleteClick = (tool: Tool) => {
     setToolToDelete(tool);
@@ -249,12 +195,118 @@ export default function ToolInventoryPage() {
     }
   };
 
-  const sortIcon = (key: string) =>
-    sortKey === key
-      ? sortDir === 'asc'
-        ? <ArrowUp className='h-3 w-3 ml-1 shrink-0' />
-        : <ArrowDown className='h-3 w-3 ml-1 shrink-0' />
-      : <ArrowUpDown className='h-3 w-3 ml-1 shrink-0 opacity-40' />;
+  const columns = React.useMemo((): ColumnDef<Tool>[] => [
+    {
+      id: 'name',
+      header: t('tools.fields.tool', 'Tool'),
+      accessorKey: 'name',
+      defaultWidth: 220,
+      cell: (tool) => (
+        <Link href={`/tools/inventory/${tool.id}`} className='flex items-center gap-3 hover:underline'>
+          <div className='flex h-10 w-10 items-center justify-center rounded-lg bg-muted shrink-0'>
+            <Wrench className='h-5 w-5 text-muted-foreground' />
+          </div>
+          <div className='min-w-0'>
+            <p className='font-medium truncate'>{tool.name}</p>
+            <p className='text-sm text-muted-foreground truncate'>
+              {[tool.brand, tool.model].filter(Boolean).join(' ') || tool.serialNumber || '—'}
+            </p>
+          </div>
+        </Link>
+      ),
+    },
+    {
+      id: 'erpCode',
+      header: t('tools.fields.erpCode', 'ERP Code'),
+      accessorKey: 'erpCode',
+      defaultWidth: 120,
+      cell: (tool) => <span className='font-mono text-sm'>{tool.erpCode}</span>,
+    },
+    {
+      id: 'category',
+      header: t('tools.fields.category', 'Category'),
+      defaultWidth: 140,
+      sortValue: (tool) => getCategoryName(tool.categoryId),
+      cell: (tool) => <span>{getCategoryName(tool.categoryId)}</span>,
+    },
+    {
+      id: 'status',
+      header: t('common.status', 'Status'),
+      accessorKey: 'status',
+      defaultWidth: 130,
+      cell: (tool) => (
+        <Badge variant={toolStatusConfig[tool.status].badge} className={toolStatusConfig[tool.status].badgeClass}>
+          {t(toolStatusConfig[tool.status].labelKey)}
+        </Badge>
+      ),
+    },
+    {
+      id: 'condition',
+      header: t('tools.fields.condition', 'Condition'),
+      accessorKey: 'condition',
+      defaultWidth: 130,
+      cell: (tool) => (
+        <Badge variant={toolConditionConfig[tool.condition].badge}>
+          {t(toolConditionConfig[tool.condition].labelKey)}
+        </Badge>
+      ),
+    },
+    {
+      id: 'calibration',
+      header: t('tools.fields.calibration', 'Calibration'),
+      defaultWidth: 140,
+      sortValue: (tool) => tool.calibrationRequired ? (tool.nextCalibrationDate ?? '') : null,
+      cell: (tool) => (
+        tool.calibrationRequired ? (
+          <div className='flex items-center gap-1'>
+            <Shield className='h-4 w-4 text-purple-500' />
+            <span className='text-sm'>
+              {tool.nextCalibrationDate ? formatDate(tool.nextCalibrationDate) : t('tools.fields.noDueDate', 'No date')}
+            </span>
+          </div>
+        ) : (
+          <span className='text-sm text-muted-foreground'>—</span>
+        )
+      ),
+    },
+    {
+      id: 'actions',
+      header: '',
+      defaultWidth: 60,
+      enableSorting: false,
+      cell: (tool) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant='ghost' size='icon'>
+              <MoreHorizontal className='h-4 w-4' />
+              <span className='sr-only'>Open menu</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align='end'>
+            <DropdownMenuLabel>{t('common.actions', 'Actions')}</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link href={`/tools/inventory/${tool.id}`}>
+                <Eye className='mr-2 h-4 w-4' />
+                {t('common.viewDetails', 'View Details')}
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href={`/tools/inventory/${tool.id}/edit`}>
+                <Pencil className='mr-2 h-4 w-4' />
+                {t('common.edit', 'Edit')}
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className='text-destructive' onClick={() => handleDeleteClick(tool)}>
+              <Trash2 className='mr-2 h-4 w-4' />
+              {t('common.delete', 'Delete')}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
+    },
+  ], [t, getCategoryName, getToolAssignment, resolveAssignee, handleDeleteClick]);
 
   if (isLoading) {
     return (
@@ -397,130 +449,22 @@ export default function ToolInventoryPage() {
         </CardHeader>
         <CardContent>
           {viewMode === 'table' ? (
-            <div className='rounded-md border'>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead><button className='flex items-center hover:text-foreground' onClick={() => handleSort('name')}>{t('tools.fields.tool', 'Tool')}{sortIcon('name')}</button></TableHead>
-                    <TableHead><button className='flex items-center hover:text-foreground' onClick={() => handleSort('erpCode')}>{t('tools.fields.erpCode', 'ERP Code')}{sortIcon('erpCode')}</button></TableHead>
-                    <TableHead><button className='flex items-center hover:text-foreground' onClick={() => handleSort('categoryName')}>{t('tools.fields.category', 'Category')}{sortIcon('categoryName')}</button></TableHead>
-                    <TableHead><button className='flex items-center hover:text-foreground' onClick={() => handleSort('status')}>{t('common.status', 'Status')}{sortIcon('status')}</button></TableHead>
-                    <TableHead>{t('tools.fields.assignedTo', 'Assigned To')}</TableHead>
-                    <TableHead><button className='flex items-center hover:text-foreground' onClick={() => handleSort('condition')}>{t('tools.fields.condition', 'Condition')}{sortIcon('condition')}</button></TableHead>
-                    <TableHead><button className='flex items-center hover:text-foreground' onClick={() => handleSort('nextCalibrationDate')}>{t('tools.fields.calibration', 'Calibration')}{sortIcon('nextCalibrationDate')}</button></TableHead>
-                    <TableHead className='w-[50px]'></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginatedTools.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={8} className='text-center py-8'>
-                        <div className='flex flex-col items-center gap-2'>
-                          <Wrench className='h-8 w-8 text-muted-foreground' />
-                          <p className='text-muted-foreground'>{t('tools.inventory.noTools', 'No tools found')}</p>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    paginatedTools.map((tool) => (
-                      <TableRow key={tool.id}>
-                        <TableCell>
-                          <Link href={`/tools/inventory/${tool.id}`} className='flex items-center gap-3 hover:underline'>
-                            <div className='flex h-10 w-10 items-center justify-center rounded-lg bg-muted'>
-                              <Wrench className='h-5 w-5 text-muted-foreground' />
-                            </div>
-                            <div>
-                              <p className='font-medium'>{tool.name}</p>
-                              <p className='text-sm text-muted-foreground'>
-                                {[tool.brand, tool.model].filter(Boolean).join(' ') || tool.serialNumber || '—'}
-                              </p>
-                            </div>
-                          </Link>
-                        </TableCell>
-                        <TableCell className='font-mono text-sm'>{tool.erpCode}</TableCell>
-                        <TableCell>{getCategoryName(tool.categoryId)}</TableCell>
-                        <TableCell>
-                          <Badge variant={toolStatusConfig[tool.status].badge} className={toolStatusConfig[tool.status].badgeClass}>
-                            {t(toolStatusConfig[tool.status].labelKey)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className='text-sm'>
-                          {(() => {
-                            const assignment = getToolAssignment(tool);
-                            if (!assignment) return <span className='text-muted-foreground'>—</span>;
-                            return (
-                              <div>
-                                <p className='font-medium'>{resolveAssignee(assignment)}</p>
-                                {assignment.assignedAt && (
-                                  <p className='text-xs text-muted-foreground'>{formatDate(assignment.assignedAt)}</p>
-                                )}
-                              </div>
-                            );
-                          })()}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={toolConditionConfig[tool.condition].badge}>
-                            {t(toolConditionConfig[tool.condition].labelKey)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {tool.calibrationRequired ? (
-                            <div className='flex items-center gap-1'>
-                              <Shield className='h-4 w-4 text-purple-500' />
-                              <span className='text-sm'>
-                                {tool.nextCalibrationDate ? formatDate(tool.nextCalibrationDate) : t('tools.fields.noDueDate', 'No date')}
-                              </span>
-                            </div>
-                          ) : (
-                            <span className='text-sm text-muted-foreground'>—</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant='ghost' size='icon'>
-                                <MoreHorizontal className='h-4 w-4' />
-                                <span className='sr-only'>Open menu</span>
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align='end'>
-                              <DropdownMenuLabel>{t('common.actions', 'Actions')}</DropdownMenuLabel>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem asChild>
-                                <Link href={`/tools/inventory/${tool.id}`}>
-                                  <Eye className='mr-2 h-4 w-4' />
-                                  {t('common.viewDetails', 'View Details')}
-                                </Link>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem asChild>
-                                <Link href={`/tools/inventory/${tool.id}/edit`}>
-                                  <Pencil className='mr-2 h-4 w-4' />
-                                  {t('common.edit', 'Edit')}
-                                </Link>
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem className='text-destructive' onClick={() => handleDeleteClick(tool)}>
-                                <Trash2 className='mr-2 h-4 w-4' />
-                                {t('common.delete', 'Delete')}
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+            <DataTable
+              tableId='tools-inventory'
+              columns={columns}
+              data={filteredTools}
+              rowKey={(row) => row.id}
+              defaultSortColumn='name'
+            />
           ) : (
             <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-3'>
-              {paginatedTools.length === 0 ? (
+              {filteredTools.length === 0 ? (
                 <div className='col-span-full flex flex-col items-center justify-center py-12'>
                   <Wrench className='h-12 w-12 text-muted-foreground' />
                   <p className='mt-2 text-muted-foreground'>{t('tools.inventory.noTools', 'No tools found')}</p>
                 </div>
               ) : (
-                paginatedTools.map((tool) => (
+                filteredTools.map((tool) => (
                   <Link
                     key={tool.id}
                     href={`/tools/inventory/${tool.id}`}
@@ -566,57 +510,6 @@ export default function ToolInventoryPage() {
                   </Link>
                 ))
               )}
-            </div>
-          )}
-
-          {/* Pagination */}
-          {filteredTools.length > 0 && (
-            <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mt-4 pt-4 border-t'>
-              <div className='flex items-center gap-2 text-sm text-muted-foreground'>
-                <span>{t('common.showing', 'Showing')}</span>
-                <span className='font-medium text-foreground'>
-                  {filteredTools.length === 0 ? 0 : startIndex}-{endIndex}
-                </span>
-                <span>{t('common.of', 'of')}</span>
-                <span className='font-medium text-foreground'>{filteredTools.length}</span>
-                <span>{t('tools.inventory.tools', 'tools')}</span>
-              </div>
-              <div className='flex items-center gap-4'>
-                <div className='flex items-center gap-2'>
-                  <span className='text-sm text-muted-foreground'>{t('common.perPage', 'Per page:')}</span>
-                  <Select
-                    value={itemsPerPage === 'all' ? 'all' : itemsPerPage.toString()}
-                    onValueChange={(v) => { setItemsPerPage(v === 'all' ? 'all' : parseInt(v, 10)); setCurrentPage(1); }}
-                  >
-                    <SelectTrigger className='w-[80px] h-8'>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value='10'>10</SelectItem>
-                      <SelectItem value='25'>25</SelectItem>
-                      <SelectItem value='50'>50</SelectItem>
-                      <SelectItem value='100'>100</SelectItem>
-                      <SelectItem value='all'>{t('common.all', 'All')}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {itemsPerPage !== 'all' && totalPages > 1 && (
-                  <div className='flex items-center gap-1'>
-                    <Button variant='outline' size='icon' className='h-8 w-8' onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1}>
-                      <ChevronLeft className='h-4 w-4' />
-                    </Button>
-                    <div className='flex items-center gap-1 px-2'>
-                      <span className='text-sm'>
-                        {t('common.page', 'Page')} <span className='font-medium'>{currentPage}</span> {t('common.of', 'of')}{' '}
-                        <span className='font-medium'>{totalPages}</span>
-                      </span>
-                    </div>
-                    <Button variant='outline' size='icon' className='h-8 w-8' onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
-                      <ChevronRight className='h-4 w-4' />
-                    </Button>
-                  </div>
-                )}
-              </div>
             </div>
           )}
         </CardContent>

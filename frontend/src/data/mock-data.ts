@@ -909,6 +909,13 @@ export const toolsNavigation: NavItem[] = [
     roles: ["admin", "fleet_manager", "operator", "technician"],
   },
   {
+    id: "nav-tools-consumables",
+    label: "navigation.tools.consumables",
+    icon: "PackageOpen",
+    url: "/tools/consumables",
+    roles: ["admin", "fleet_manager", "operator", "technician"],
+  },
+  {
     id: "nav-tools-assignments",
     label: "navigation.tools.assignments",
     icon: "ClipboardCheck",

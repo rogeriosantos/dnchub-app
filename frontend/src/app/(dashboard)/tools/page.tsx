@@ -79,6 +79,17 @@ const moduleCards = [
     bg: 'bg-indigo-50 dark:bg-indigo-950/30',
     border: 'border-indigo-200 dark:border-indigo-800',
   },
+  {
+    titleKey: 'tools.sections.consumables',
+    titleFallback: 'Consumables',
+    descKey: 'tools.sections.consumablesDesc',
+    descFallback: 'Track consumable items by quantity',
+    href: '/tools/consumables',
+    icon: Package,
+    color: 'text-teal-600',
+    bg: 'bg-teal-50 dark:bg-teal-950/30',
+    border: 'border-teal-200 dark:border-teal-800',
+  },
 ];
 
 export default function ToolsDashboardPage() {

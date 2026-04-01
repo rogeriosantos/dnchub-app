@@ -7,15 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Progress } from "@/components/ui/progress";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   Select,
   SelectContent,
@@ -36,6 +27,7 @@ import {
   AlertDescription,
   AlertTitle,
 } from "@/components/ui/alert";
+import { DataTable, ColumnDef } from "@/components/ui/data-table";
 import {
   Plus,
   Search,
@@ -52,7 +44,7 @@ import {
   Package,
 } from "lucide-react";
 import { fuelPumpsService } from "@/lib/api";
-import { formatNumber } from "@/lib/utils";
+import { formatNumber, formatDate } from "@/lib/utils";
 import type { FuelPump, FuelPumpStats, PumpStatus, FuelType } from "@/types";
 
 // Status badge config
@@ -74,11 +66,11 @@ const fuelTypeLabels: Record<FuelType, string> = {
   cng: "CNG",
 };
 
-// Get level color based on percentage
-function getLevelColor(percentage: number): string {
-  if (percentage <= 20) return "bg-red-500";
-  if (percentage <= 40) return "bg-amber-500";
-  return "bg-green-500";
+// Get level color class based on percentage
+function getLevelColorClass(percentage: number): string {
+  if (percentage <= 20) return "text-destructive";
+  if (percentage <= 40) return "text-amber-600";
+  return "text-green-600";
 }
 
 export default function FuelPumpsPage() {
@@ -140,18 +132,165 @@ export default function FuelPumpsPage() {
   }, []);
 
   // Filter pumps
-  const filteredPumps = pumps.filter((pump) => {
-    const searchLower = searchQuery.toLowerCase();
-    const matchesSearch =
-      pump.name.toLowerCase().includes(searchLower) ||
-      pump.code.toLowerCase().includes(searchLower) ||
-      pump.location?.toLowerCase().includes(searchLower);
+  const filteredPumps = React.useMemo(() => {
+    return pumps.filter((pump) => {
+      const searchLower = searchQuery.toLowerCase();
+      const matchesSearch =
+        pump.name.toLowerCase().includes(searchLower) ||
+        pump.code.toLowerCase().includes(searchLower) ||
+        pump.location?.toLowerCase().includes(searchLower);
 
-    const matchesStatus = statusFilter === "all" || pump.status === statusFilter;
-    const matchesFuelType = fuelTypeFilter === "all" || pump.fuelType === fuelTypeFilter;
+      const matchesStatus = statusFilter === "all" || pump.status === statusFilter;
+      const matchesFuelType = fuelTypeFilter === "all" || pump.fuelType === fuelTypeFilter;
 
-    return matchesSearch && matchesStatus && matchesFuelType;
-  });
+      return matchesSearch && matchesStatus && matchesFuelType;
+    });
+  }, [pumps, searchQuery, statusFilter, fuelTypeFilter]);
+
+  // Column definitions
+  const columns = React.useMemo<ColumnDef<FuelPump>[]>(
+    () => [
+      {
+        id: "name",
+        header: "Name",
+        defaultWidth: 200,
+        sortValue: (row) => row.name,
+        cell: (row) => (
+          <div>
+            <Link href={`/fleet/fuel-pumps/${row.id}`} className="font-medium hover:underline block truncate">
+              {row.name}
+            </Link>
+            {row.location && (
+              <p className="text-xs text-muted-foreground truncate">{row.location}</p>
+            )}
+          </div>
+        ),
+      },
+      {
+        id: "code",
+        header: "Code",
+        accessorKey: "code",
+        defaultWidth: 120,
+        cell: (row) => <span className="font-mono text-sm">{row.code}</span>,
+      },
+      {
+        id: "fuelType",
+        header: "Fuel Type",
+        accessorKey: "fuelType",
+        defaultWidth: 110,
+        cell: (row) => (
+          <Badge variant="outline">{fuelTypeLabels[row.fuelType]}</Badge>
+        ),
+      },
+      {
+        id: "currentLevel",
+        header: "Level / Capacity",
+        defaultWidth: 140,
+        sortValue: (row) => row.levelPercentage ?? (row.capacity > 0 ? (row.currentLevel / row.capacity) * 100 : 0),
+        cell: (row) => {
+          const levelPercentage = row.levelPercentage ?? (row.capacity > 0 ? (row.currentLevel / row.capacity) * 100 : 0);
+          return (
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-1.5">
+                <span className={`tabular-nums text-sm font-medium ${getLevelColorClass(levelPercentage)}`}>
+                  {formatNumber(row.currentLevel)} L
+                </span>
+                <span className="text-xs text-muted-foreground">/ {formatNumber(row.capacity)} L</span>
+              </div>
+              <p className="text-xs text-muted-foreground">{levelPercentage.toFixed(0)}% full</p>
+              {row.isLowLevel && (
+                <div className="flex items-center gap-1 text-xs text-destructive">
+                  <AlertTriangle className="h-3 w-3" />
+                  Low
+                </div>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        id: "status",
+        header: "Status",
+        accessorKey: "status",
+        defaultWidth: 120,
+        cell: (row) => (
+          <div className="space-y-1">
+            <Badge variant={pumpStatusConfig[row.status].variant}>
+              {pumpStatusConfig[row.status].label}
+            </Badge>
+            {row.isMaintenanceDue && (
+              <div className="flex items-center gap-1 text-xs text-amber-600">
+                <Wrench className="h-3 w-3" />
+                Maint. Due
+              </div>
+            )}
+          </div>
+        ),
+      },
+      {
+        id: "lastDelivery",
+        header: "Last Delivery",
+        defaultWidth: 140,
+        sortValue: (row) => (row as FuelPump & { lastDeliveryDate?: string }).lastDeliveryDate ?? "",
+        cell: (row) => {
+          const lastDate = (row as FuelPump & { lastDeliveryDate?: string }).lastDeliveryDate;
+          return (
+            <span className="text-sm">
+              {lastDate ? formatDate(lastDate) : "—"}
+            </span>
+          );
+        },
+      },
+      {
+        id: "actions",
+        header: "",
+        defaultWidth: 60,
+        enableSorting: false,
+        cell: (row) => (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <MoreHorizontal className="h-4 w-4" />
+                <span className="sr-only">Open menu</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href={`/fleet/fuel-pumps/${row.id}`}>
+                  <Eye className="mr-2 h-4 w-4" />
+                  View Details
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href={`/fleet/fuel-pumps/${row.id}/edit`}>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Edit Pump
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href={`/fleet/fuel-pumps/${row.id}/deliveries/new`}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Delivery
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive"
+                onClick={() => handleDeletePump(row.id)}
+                disabled={actionLoading === row.id}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                {actionLoading === row.id ? "Deleting..." : "Delete"}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ),
+      },
+    ],
+    [actionLoading, handleDeletePump]
+  );
 
   // Loading state
   if (isLoading) {
@@ -343,135 +482,14 @@ export default function FuelPumpsPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Code</TableHead>
-                  <TableHead>Fuel Type</TableHead>
-                  <TableHead>Level</TableHead>
-                  <TableHead>Capacity</TableHead>
-                  <TableHead>Odometer</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredPumps.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
-                      <div className="flex flex-col items-center gap-2">
-                        <Fuel className="h-8 w-8 text-muted-foreground" />
-                        <p className="text-muted-foreground">No pumps found</p>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredPumps.map((pump) => {
-                    const levelPercentage = pump.levelPercentage ?? (pump.capacity > 0 ? (pump.currentLevel / pump.capacity) * 100 : 0);
-                    return (
-                      <TableRow key={pump.id}>
-                        <TableCell>
-                          <Link
-                            href={`/fleet/fuel-pumps/${pump.id}`}
-                            className="font-medium hover:underline"
-                          >
-                            {pump.name}
-                          </Link>
-                          {pump.location && (
-                            <p className="text-xs text-muted-foreground">{pump.location}</p>
-                          )}
-                        </TableCell>
-                        <TableCell className="font-mono">{pump.code}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline">
-                            {fuelTypeLabels[pump.fuelType]}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="space-y-1 min-w-[120px]">
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="tabular-nums">{formatNumber(pump.currentLevel)} L</span>
-                              <span className="text-muted-foreground">{levelPercentage.toFixed(0)}%</span>
-                            </div>
-                            <Progress
-                              value={levelPercentage}
-                              className="h-2"
-                              // @ts-expect-error - custom indicator class
-                              indicatorClassName={getLevelColor(levelPercentage)}
-                            />
-                            {pump.isLowLevel && (
-                              <div className="flex items-center gap-1 text-xs text-destructive">
-                                <AlertTriangle className="h-3 w-3" />
-                                Low Level
-                              </div>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="tabular-nums">{formatNumber(pump.capacity)} L</TableCell>
-                        <TableCell className="tabular-nums">{formatNumber(pump.currentOdometer)}</TableCell>
-                        <TableCell>
-                          <div className="space-y-1">
-                            <Badge variant={pumpStatusConfig[pump.status].variant}>
-                              {pumpStatusConfig[pump.status].label}
-                            </Badge>
-                            {pump.isMaintenanceDue && (
-                              <div className="flex items-center gap-1 text-xs text-amber-600">
-                                <Wrench className="h-3 w-3" />
-                                Maintenance Due
-                              </div>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreHorizontal className="h-4 w-4" />
-                                <span className="sr-only">Open menu</span>
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem asChild>
-                                <Link href={`/fleet/fuel-pumps/${pump.id}`}>
-                                  <Eye className="mr-2 h-4 w-4" />
-                                  View Details
-                                </Link>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem asChild>
-                                <Link href={`/fleet/fuel-pumps/${pump.id}/edit`}>
-                                  <Pencil className="mr-2 h-4 w-4" />
-                                  Edit Pump
-                                </Link>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem asChild>
-                                <Link href={`/fleet/fuel-pumps/${pump.id}/deliveries/new`}>
-                                  <Plus className="mr-2 h-4 w-4" />
-                                  Add Delivery
-                                </Link>
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                className="text-destructive"
-                                onClick={() => handleDeletePump(pump.id)}
-                                disabled={actionLoading === pump.id}
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                {actionLoading === pump.id ? "Deleting..." : "Delete"}
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </div>
+          <DataTable
+            tableId="fleet-fuel-pumps"
+            columns={columns}
+            data={filteredPumps}
+            isLoading={isLoading}
+            defaultSortColumn="name"
+            rowKey={(row) => row.id}
+          />
         </CardContent>
       </Card>
     </div>

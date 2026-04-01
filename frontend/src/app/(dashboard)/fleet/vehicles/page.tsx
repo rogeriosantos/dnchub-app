@@ -7,7 +7,6 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   DropdownMenu,
@@ -27,7 +26,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Plus, Search, MoreHorizontal, Eye, Pencil, Trash2, Truck, Grid3X3, List, RefreshCw, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { DataTable, ColumnDef } from '@/components/ui/data-table';
+import { Plus, Search, MoreHorizontal, Eye, Pencil, Trash2, Truck, Grid3X3, List, RefreshCw, AlertCircle } from 'lucide-react';
 import { vehiclesService, driversService } from '@/lib/api';
 import { useApi, useMutation, formatApiError } from '@/lib/hooks';
 import { formatDistance, formatDate } from '@/lib/utils';
@@ -60,8 +60,6 @@ export default function VehiclesPage() {
   const [viewMode, setViewMode] = React.useState<'table' | 'grid'>('table');
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
   const [vehicleToDelete, setVehicleToDelete] = React.useState<Vehicle | null>(null);
-  const [currentPage, setCurrentPage] = React.useState(1);
-  const [itemsPerPage, setItemsPerPage] = React.useState<number | 'all'>(10);
 
   // Fetch vehicles from API
   const {
@@ -91,6 +89,15 @@ export default function VehiclesPage() {
       .replace(/[\u0300-\u036f]/g, '');
   };
 
+  // Build drivers map for lookup
+  const driversMap = React.useMemo(() => {
+    const map: Record<string, string> = {};
+    drivers?.forEach((d) => {
+      map[d.id] = `${d.firstName} ${d.lastName}`;
+    });
+    return map;
+  }, [drivers]);
+
   // Filter vehicles
   const filteredVehicles = React.useMemo(() => {
     if (!vehicles) return [];
@@ -111,52 +118,11 @@ export default function VehiclesPage() {
     });
   }, [vehicles, searchQuery, statusFilter, typeFilter]);
 
-  // Reset to page 1 when filters change
-  React.useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, statusFilter, typeFilter]);
-
-  // Paginated vehicles
-  const paginatedVehicles = React.useMemo(() => {
-    if (itemsPerPage === 'all') return filteredVehicles;
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    return filteredVehicles.slice(startIndex, startIndex + itemsPerPage);
-  }, [filteredVehicles, currentPage, itemsPerPage]);
-
-  // Pagination calculations
-  const totalPages = React.useMemo(() => {
-    if (itemsPerPage === 'all') return 1;
-    return Math.ceil(filteredVehicles.length / itemsPerPage);
-  }, [filteredVehicles.length, itemsPerPage]);
-
-  const startIndex = itemsPerPage === 'all' ? 1 : (currentPage - 1) * itemsPerPage + 1;
-  const endIndex = itemsPerPage === 'all' ? filteredVehicles.length : Math.min(currentPage * itemsPerPage, filteredVehicles.length);
-
-  // Handle items per page change
-  const handleItemsPerPageChange = (value: string) => {
-    if (value === 'all') {
-      setItemsPerPage('all');
-    } else {
-      setItemsPerPage(parseInt(value, 10));
-    }
-    setCurrentPage(1);
-  };
-
   // Get unique vehicle types
   const vehicleTypes = React.useMemo(() => {
     if (!vehicles) return [];
     return Array.from(new Set(vehicles.map((v) => v.type)));
   }, [vehicles]);
-
-  // Get driver name for a vehicle
-  const getDriverName = React.useCallback(
-    (driverId?: string) => {
-      if (!driverId) return 'Unassigned';
-      const driver = drivers?.find((d) => d.id === driverId);
-      return driver ? `${driver.firstName} ${driver.lastName}` : 'Unknown';
-    },
-    [drivers]
-  );
 
   // Handle delete
   const handleDeleteClick = (vehicle: Vehicle) => {
@@ -176,6 +142,120 @@ export default function VehiclesPage() {
       console.error('Failed to delete vehicle:', error);
     }
   };
+
+  // Column definitions (useMemo closes over handleDeleteClick)
+  const columns = React.useMemo<ColumnDef<Vehicle>[]>(
+    () => [
+      {
+        id: 'name',
+        header: 'Vehicle',
+        defaultWidth: 220,
+        sortValue: (row) => `${row.make} ${row.model}`,
+        cell: (row) => (
+          <Link href={`/fleet/vehicles/${row.id}`} className='flex items-center gap-3 hover:underline'>
+            <div className='flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted'>
+              <Truck className='h-4 w-4 text-muted-foreground' />
+            </div>
+            <div className='min-w-0'>
+              <p className='font-medium truncate'>
+                {row.make} {row.model}
+              </p>
+              <p className='text-xs text-muted-foreground truncate'>
+                {row.registrationPlate} · {row.year}
+              </p>
+            </div>
+          </Link>
+        ),
+      },
+      {
+        id: 'licensePlate',
+        header: 'Plate',
+        accessorKey: 'registrationPlate',
+        defaultWidth: 120,
+        cell: (row) => <span className='font-mono text-sm'>{row.registrationPlate}</span>,
+      },
+      {
+        id: 'type',
+        header: 'Type',
+        accessorKey: 'type',
+        defaultWidth: 110,
+        cell: (row) => <span className='capitalize'>{row.type.replace('_', ' ')}</span>,
+      },
+      {
+        id: 'year',
+        header: 'Year',
+        accessorKey: 'year',
+        defaultWidth: 80,
+      },
+      {
+        id: 'driver',
+        header: 'Driver',
+        defaultWidth: 150,
+        sortValue: (row) => driversMap[row.assignedDriverId ?? ''] ?? '',
+        cell: (row) => (
+          <span className='truncate block'>
+            {row.assignedDriverId ? driversMap[row.assignedDriverId] ?? 'Unknown' : 'Unassigned'}
+          </span>
+        ),
+      },
+      {
+        id: 'mileage',
+        header: 'Odometer',
+        defaultWidth: 130,
+        sortValue: (row) => row.currentOdometer,
+        cell: (row) => <span className='tabular-nums'>{formatDistance(row.currentOdometer)}</span>,
+      },
+      {
+        id: 'status',
+        header: 'Status',
+        accessorKey: 'status',
+        defaultWidth: 120,
+        cell: (row) => (
+          <Badge variant={vehicleStatusBadge[row.status]}>
+            {t(vehicleStatusConfig[row.status]?.labelKey ?? 'vehicles.status.idle')}
+          </Badge>
+        ),
+      },
+      {
+        id: 'actions',
+        header: '',
+        defaultWidth: 60,
+        enableSorting: false,
+        cell: (row) => (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant='ghost' size='icon'>
+                <MoreHorizontal className='h-4 w-4' />
+                <span className='sr-only'>Open menu</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align='end'>
+              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href={`/fleet/vehicles/${row.id}`}>
+                  <Eye className='mr-2 h-4 w-4' />
+                  View Details
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href={`/fleet/vehicles/${row.id}/edit`}>
+                  <Pencil className='mr-2 h-4 w-4' />
+                  Edit
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className='text-destructive' onClick={() => handleDeleteClick(row)}>
+                <Trash2 className='mr-2 h-4 w-4' />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ),
+      },
+    ],
+    [driversMap, t, handleDeleteClick]
+  );
 
   // Loading state
   if (isLoadingVehicles) {
@@ -318,98 +398,23 @@ export default function VehiclesPage() {
         </CardHeader>
         <CardContent>
           {viewMode === 'table' ? (
-            <div className='rounded-md border'>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Vehicle</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Odometer</TableHead>
-                    <TableHead>Assigned Driver</TableHead>
-                    <TableHead>Next Service</TableHead>
-                    <TableHead className='w-[50px]'></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginatedVehicles.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className='text-center py-8'>
-                        <div className='flex flex-col items-center gap-2'>
-                          <Truck className='h-8 w-8 text-muted-foreground' />
-                          <p className='text-muted-foreground'>{t('vehicles.noVehicles')}</p>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    paginatedVehicles.map((vehicle) => (
-                      <TableRow key={vehicle.id}>
-                        <TableCell>
-                          <Link href={`/fleet/vehicles/${vehicle.id}`} className='flex items-center gap-3 hover:underline'>
-                            <div className='flex h-10 w-10 items-center justify-center rounded-lg bg-muted'>
-                              <Truck className='h-5 w-5 text-muted-foreground' />
-                            </div>
-                            <div>
-                              <p className='font-medium'>{vehicle.registrationPlate}</p>
-                              <p className='text-sm text-muted-foreground'>
-                                {vehicle.make} {vehicle.model} ({vehicle.year})
-                              </p>
-                            </div>
-                          </Link>
-                        </TableCell>
-                        <TableCell className='capitalize'>{vehicle.type.replace('_', ' ')}</TableCell>
-                        <TableCell>
-                          <Badge variant={vehicleStatusBadge[vehicle.status]}>{t(vehicleStatusConfig[vehicle.status].labelKey)}</Badge>
-                        </TableCell>
-                        <TableCell className='tabular-nums'>{formatDistance(vehicle.currentOdometer)}</TableCell>
-                        <TableCell>{getDriverName(vehicle.assignedDriverId)}</TableCell>
-                        <TableCell>{vehicle.nextServiceDate ? formatDate(vehicle.nextServiceDate) : 'Not scheduled'}</TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant='ghost' size='icon'>
-                                <MoreHorizontal className='h-4 w-4' />
-                                <span className='sr-only'>Open menu</span>
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align='end'>
-                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem asChild>
-                                <Link href={`/fleet/vehicles/${vehicle.id}`}>
-                                  <Eye className='mr-2 h-4 w-4' />
-                                  View Details
-                                </Link>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem asChild>
-                                <Link href={`/fleet/vehicles/${vehicle.id}/edit`}>
-                                  <Pencil className='mr-2 h-4 w-4' />
-                                  Edit
-                                </Link>
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem className='text-destructive' onClick={() => handleDeleteClick(vehicle)}>
-                                <Trash2 className='mr-2 h-4 w-4' />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+            <DataTable
+              tableId='fleet-vehicles'
+              columns={columns}
+              data={filteredVehicles}
+              isLoading={isLoadingVehicles}
+              defaultSortColumn='name'
+              rowKey={(row) => row.id}
+            />
           ) : (
             <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-3'>
-              {paginatedVehicles.length === 0 ? (
+              {filteredVehicles.length === 0 ? (
                 <div className='col-span-full flex flex-col items-center justify-center py-12'>
                   <Truck className='h-12 w-12 text-muted-foreground' />
                   <p className='mt-2 text-muted-foreground'>No vehicles found</p>
                 </div>
               ) : (
-                paginatedVehicles.map((vehicle) => (
+                filteredVehicles.map((vehicle) => (
                   <Link
                     key={vehicle.id}
                     href={`/fleet/vehicles/${vehicle.id}`}
@@ -427,7 +432,7 @@ export default function VehiclesPage() {
                           </p>
                         </div>
                       </div>
-                      <Badge variant={vehicleStatusBadge[vehicle.status]}>{t(vehicleStatusConfig[vehicle.status].labelKey)}</Badge>
+                      <Badge variant={vehicleStatusBadge[vehicle.status]}>{t(vehicleStatusConfig[vehicle.status]?.labelKey ?? 'vehicles.status.idle')}</Badge>
                     </div>
                     <div className='mt-4 grid grid-cols-2 gap-4 text-sm'>
                       <div>
@@ -444,75 +449,14 @@ export default function VehiclesPage() {
                       </div>
                       <div>
                         <p className='text-muted-foreground'>Driver</p>
-                        <p className='font-medium truncate'>{getDriverName(vehicle.assignedDriverId)}</p>
+                        <p className='font-medium truncate'>
+                          {vehicle.assignedDriverId ? driversMap[vehicle.assignedDriverId] ?? 'Unknown' : 'Unassigned'}
+                        </p>
                       </div>
                     </div>
                   </Link>
                 ))
               )}
-            </div>
-          )}
-
-          {/* Pagination Controls */}
-          {filteredVehicles.length > 0 && (
-            <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mt-4 pt-4 border-t'>
-              <div className='flex items-center gap-2 text-sm text-muted-foreground'>
-                <span>Showing</span>
-                <span className='font-medium text-foreground'>
-                  {filteredVehicles.length === 0 ? 0 : startIndex}-{endIndex}
-                </span>
-                <span>of</span>
-                <span className='font-medium text-foreground'>{filteredVehicles.length}</span>
-                <span>vehicles</span>
-              </div>
-              <div className='flex items-center gap-4'>
-                <div className='flex items-center gap-2'>
-                  <span className='text-sm text-muted-foreground'>Per page:</span>
-                  <Select
-                    value={itemsPerPage === 'all' ? 'all' : itemsPerPage.toString()}
-                    onValueChange={handleItemsPerPageChange}
-                  >
-                    <SelectTrigger className='w-[80px] h-8'>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value='10'>10</SelectItem>
-                      <SelectItem value='25'>25</SelectItem>
-                      <SelectItem value='50'>50</SelectItem>
-                      <SelectItem value='100'>100</SelectItem>
-                      <SelectItem value='all'>All</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {itemsPerPage !== 'all' && totalPages > 1 && (
-                  <div className='flex items-center gap-1'>
-                    <Button
-                      variant='outline'
-                      size='icon'
-                      className='h-8 w-8'
-                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                      disabled={currentPage === 1}
-                    >
-                      <ChevronLeft className='h-4 w-4' />
-                    </Button>
-                    <div className='flex items-center gap-1 px-2'>
-                      <span className='text-sm'>
-                        Page <span className='font-medium'>{currentPage}</span> of{' '}
-                        <span className='font-medium'>{totalPages}</span>
-                      </span>
-                    </div>
-                    <Button
-                      variant='outline'
-                      size='icon'
-                      className='h-8 w-8'
-                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                      disabled={currentPage === totalPages}
-                    >
-                      <ChevronRight className='h-4 w-4' />
-                    </Button>
-                  </div>
-                )}
-              </div>
             </div>
           )}
         </CardContent>

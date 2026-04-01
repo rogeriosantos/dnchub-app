@@ -22,11 +22,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { ArrowLeft, Save, AlertCircle, Briefcase, Wrench, Plus, X } from 'lucide-react';
+import { ArrowLeft, Save, AlertCircle, Briefcase, Wrench, Plus, X, PackageOpen } from 'lucide-react';
 import { matchesSearch } from '@/lib/utils';
-import { toolCasesService, toolLocationsService, toolsService } from '@/lib/api';
+import { toolCasesService, toolLocationsService, toolsService, consumablesService } from '@/lib/api';
 import { useApi } from '@/lib/hooks';
-import type { Tool, ToolCase, ToolLocation, ToolStatus, ToolCondition } from '@/types';
+import type { Tool, ToolCase, ToolLocation, ToolStatus, ToolCondition, Consumable } from '@/types';
 
 const statusValues: ToolStatus[] = ['available', 'assigned', 'in_repair', 'in_calibration', 'lost', 'retired'];
 const conditionValues: ToolCondition[] = ['new', 'good', 'fair', 'needs_repair', 'damaged'];
@@ -49,6 +49,13 @@ export default function EditCasePage() {
   const [toolSearch, setToolSearch] = React.useState('');
   const [toolActionLoading, setToolActionLoading] = React.useState<string | null>(null);
 
+  const [caseConsumables, setCaseConsumables] = React.useState<Consumable[]>([]);
+  const [availableConsumables, setAvailableConsumables] = React.useState<Consumable[]>([]);
+  const [consumableSearch, setConsumableSearch] = React.useState('');
+  const [consumableActionLoading, setConsumableActionLoading] = React.useState<string | null>(null);
+  // Inline quantity picker state: tracks which consumable is being configured and the qty entered
+  const [addingConsumable, setAddingConsumable] = React.useState<{ id: string; qty: number } | null>(null);
+
   const { data: locations } = useApi<ToolLocation[]>(
     React.useCallback(() => toolLocationsService.getAll(), []), []
   );
@@ -67,10 +74,11 @@ export default function EditCasePage() {
     const load = async () => {
       try {
         setIsLoading(true);
-        const [data, currentTools, unassigned] = await Promise.all([
+        const [data, currentTools, unassigned, allConsumables] = await Promise.all([
           toolCasesService.getById(caseId),
           toolCasesService.getTools(caseId),
           toolsService.getUnassigned(),
+          consumablesService.getAll(),
         ]);
         setToolCase(data);
         setForm({
@@ -84,6 +92,8 @@ export default function EditCasePage() {
         });
         setCaseTools(currentTools);
         setAvailableTools(unassigned);
+        setCaseConsumables(allConsumables.filter((c) => c.caseId === caseId));
+        setAvailableConsumables(allConsumables.filter((c) => !c.caseId));
       } catch {
         setError('Case not found');
       } finally {
@@ -102,6 +112,11 @@ export default function EditCasePage() {
     [availableTools, toolSearch]
   );
 
+  const filteredAvailableConsumables = React.useMemo(
+    () => availableConsumables.filter((c) => matchesSearch([c.name, c.erpCode], consumableSearch)),
+    [availableConsumables, consumableSearch]
+  );
+
   const handleAddTool = async (tool: Tool) => {
     setToolActionLoading(tool.id);
     try {
@@ -112,6 +127,33 @@ export default function EditCasePage() {
       setError(err instanceof Error ? err.message : 'Failed to add tool to case.');
     } finally {
       setToolActionLoading(null);
+    }
+  };
+
+  const handleAddConsumable = async (consumable: Consumable, qty: number) => {
+    setAddingConsumable(null);
+    setConsumableActionLoading(consumable.id);
+    try {
+      const updated = await consumablesService.update(consumable.id, { caseId: caseId, currentQuantity: qty });
+      setCaseConsumables((prev) => [...prev, updated]);
+      setAvailableConsumables((prev) => prev.filter((c) => c.id !== consumable.id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add consumable to case.');
+    } finally {
+      setConsumableActionLoading(null);
+    }
+  };
+
+  const handleRemoveConsumable = async (consumable: Consumable) => {
+    setConsumableActionLoading(consumable.id);
+    try {
+      await consumablesService.update(consumable.id, { caseId: null });
+      setAvailableConsumables((prev) => [...prev, { ...consumable, caseId: null }]);
+      setCaseConsumables((prev) => prev.filter((c) => c.id !== consumable.id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to remove consumable from case.');
+    } finally {
+      setConsumableActionLoading(null);
     }
   };
 
@@ -292,73 +334,181 @@ export default function EditCasePage() {
           </div>
         </form>
 
-        {/* Right: tools management */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('tools.cases.manageTools', 'Tools in Case')}</CardTitle>
-            <CardDescription>{t('tools.cases.manageToolsDesc', 'Add or remove individual tools assigned to this case')}</CardDescription>
-          </CardHeader>
-          <CardContent className='space-y-4'>
-            {caseTools.length === 0 ? (
-              <p className='text-sm text-muted-foreground'>{t('tools.cases.noTools', 'No tools assigned to this case yet.')}</p>
-            ) : (
-              <div className='space-y-1'>
-                {caseTools.map((tool) => (
-                  <div key={tool.id} className='flex items-center justify-between py-2 px-3 border rounded-md'>
-                    <div className='flex items-center gap-2 min-w-0'>
-                      <span className='font-mono text-xs text-muted-foreground shrink-0'>{tool.erpCode}</span>
-                      <span className='text-sm truncate'>{tool.name}</span>
-                    </div>
-                    <Button
-                      variant='ghost'
-                      size='icon'
-                      className='h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive'
-                      onClick={() => handleRemoveTool(tool)}
-                      disabled={toolActionLoading === tool.id}
-                      title={t('common.remove', 'Remove')}
-                    >
-                      {toolActionLoading === tool.id ? <span className='text-xs'>…</span> : <X className='h-3.5 w-3.5' />}
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className='border-t pt-4 space-y-2'>
-              <p className='text-sm font-medium'>{t('tools.cases.addTool', 'Add a Tool')}</p>
-              <Input
-                placeholder={t('common.search', 'Search by name or ERP code...')}
-                value={toolSearch}
-                onChange={(e) => setToolSearch(e.target.value)}
-              />
-              <div className='max-h-64 overflow-y-auto space-y-1 pr-1'>
-                {filteredAvailableTools.length === 0 ? (
-                  <p className='text-sm text-muted-foreground py-2'>
-                    {toolSearch ? t('common.noResults', 'No results found.') : t('tools.cases.noAvailableTools', 'No unassigned tools available.')}
-                  </p>
-                ) : (
-                  filteredAvailableTools.map((tool) => (
-                    <div key={tool.id} className='flex items-center justify-between py-2 px-3 hover:bg-muted rounded-md'>
+        {/* Right: tools + consumables management */}
+        <div className='space-y-6'>
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('tools.cases.manageTools', 'Tools in Case')}</CardTitle>
+              <CardDescription>{t('tools.cases.manageToolsDesc', 'Add or remove individual tools assigned to this case')}</CardDescription>
+            </CardHeader>
+            <CardContent className='space-y-4'>
+              {caseTools.length === 0 ? (
+                <p className='text-sm text-muted-foreground'>{t('tools.cases.noTools', 'No tools assigned to this case yet.')}</p>
+              ) : (
+                <div className='space-y-1'>
+                  {caseTools.map((tool) => (
+                    <div key={tool.id} className='flex items-center justify-between py-2 px-3 border rounded-md'>
                       <div className='flex items-center gap-2 min-w-0'>
                         <span className='font-mono text-xs text-muted-foreground shrink-0'>{tool.erpCode}</span>
                         <span className='text-sm truncate'>{tool.name}</span>
                       </div>
                       <Button
-                        variant='outline'
-                        size='sm'
-                        className='h-7 shrink-0'
-                        onClick={() => handleAddTool(tool)}
+                        variant='ghost'
+                        size='icon'
+                        className='h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive'
+                        onClick={() => handleRemoveTool(tool)}
                         disabled={toolActionLoading === tool.id}
+                        title={t('common.remove', 'Remove')}
                       >
-                        {toolActionLoading === tool.id ? <span className='text-xs'>…</span> : <><Plus className='mr-1 h-3.5 w-3.5' />{t('common.add', 'Add')}</>}
+                        {toolActionLoading === tool.id ? <span className='text-xs'>…</span> : <X className='h-3.5 w-3.5' />}
                       </Button>
                     </div>
-                  ))
-                )}
+                  ))}
+                </div>
+              )}
+
+              <div className='border-t pt-4 space-y-2'>
+                <p className='text-sm font-medium'>{t('tools.cases.addTool', 'Add a Tool')}</p>
+                <Input
+                  placeholder={t('common.search', 'Search by name or ERP code...')}
+                  value={toolSearch}
+                  onChange={(e) => setToolSearch(e.target.value)}
+                />
+                <div className='max-h-64 overflow-y-auto space-y-1 pr-1'>
+                  {filteredAvailableTools.length === 0 ? (
+                    <p className='text-sm text-muted-foreground py-2'>
+                      {toolSearch ? t('common.noResults', 'No results found.') : t('tools.cases.noAvailableTools', 'No unassigned tools available.')}
+                    </p>
+                  ) : (
+                    filteredAvailableTools.map((tool) => (
+                      <div key={tool.id} className='flex items-center justify-between py-2 px-3 hover:bg-muted rounded-md'>
+                        <div className='flex items-center gap-2 min-w-0'>
+                          <span className='font-mono text-xs text-muted-foreground shrink-0'>{tool.erpCode}</span>
+                          <span className='text-sm truncate'>{tool.name}</span>
+                        </div>
+                        <Button
+                          variant='outline'
+                          size='sm'
+                          className='h-7 shrink-0'
+                          onClick={() => handleAddTool(tool)}
+                          disabled={toolActionLoading === tool.id}
+                        >
+                          {toolActionLoading === tool.id ? <span className='text-xs'>…</span> : <><Plus className='mr-1 h-3.5 w-3.5' />{t('common.add', 'Add')}</>}
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+
+          {/* Consumables in Case */}
+          <Card>
+            <CardHeader>
+              <CardTitle className='flex items-center gap-2'>
+                <PackageOpen className='h-5 w-5 text-teal-600' />
+                {t('tools.cases.manageConsumables', 'Consumables in Case')}
+              </CardTitle>
+              <CardDescription>{t('tools.cases.manageConsumablesDesc', 'Add or remove consumables stored in this case')}</CardDescription>
+            </CardHeader>
+            <CardContent className='space-y-4'>
+              {caseConsumables.length === 0 ? (
+                <p className='text-sm text-muted-foreground'>{t('tools.cases.noConsumables', 'No consumables in this case yet.')}</p>
+              ) : (
+                <div className='space-y-1'>
+                  {caseConsumables.map((c) => (
+                    <div key={c.id} className='flex items-center justify-between py-2 px-3 border rounded-md'>
+                      <div className='flex items-center gap-2 min-w-0'>
+                        <span className='font-mono text-xs text-muted-foreground shrink-0'>{c.erpCode}</span>
+                        <span className='text-sm truncate'>{c.name}</span>
+                      </div>
+                      <span className='text-sm font-medium tabular-nums shrink-0 mx-2'>{c.currentQuantity} <span className='text-xs font-normal text-muted-foreground'>{c.unit}</span></span>
+                      <Button
+                        variant='ghost'
+                        size='icon'
+                        className='h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive'
+                        onClick={() => handleRemoveConsumable(c)}
+                        disabled={consumableActionLoading === c.id}
+                        title={t('common.remove', 'Remove')}
+                      >
+                        {consumableActionLoading === c.id ? <span className='text-xs'>…</span> : <X className='h-3.5 w-3.5' />}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className='border-t pt-4 space-y-2'>
+                <p className='text-sm font-medium'>{t('tools.cases.addConsumable', 'Add a Consumable')}</p>
+                <Input
+                  placeholder={t('common.search', 'Search by name or ERP code...')}
+                  value={consumableSearch}
+                  onChange={(e) => { setConsumableSearch(e.target.value); setAddingConsumable(null); }}
+                />
+                <div className='max-h-64 overflow-y-auto space-y-1 pr-1'>
+                  {filteredAvailableConsumables.length === 0 ? (
+                    <p className='text-sm text-muted-foreground py-2'>
+                      {consumableSearch ? t('common.noResults', 'No results found.') : t('tools.cases.noAvailableConsumables', 'No unassigned consumables available.')}
+                    </p>
+                  ) : (
+                    filteredAvailableConsumables.map((c) => {
+                    const isAdding = addingConsumable?.id === c.id;
+                    const isLoading = consumableActionLoading === c.id;
+                    return (
+                      <div key={c.id} className='rounded-md border border-transparent hover:border-border hover:bg-muted/50 transition-colors'>
+                        <div className='flex items-center justify-between py-2 px-3'>
+                          <div className='flex items-center gap-2 min-w-0'>
+                            <span className='font-mono text-xs text-muted-foreground shrink-0'>{c.erpCode}</span>
+                            <span className='text-sm truncate'>{c.name}</span>
+                            <span className='text-xs text-muted-foreground shrink-0'>({c.currentQuantity} {c.unit})</span>
+                          </div>
+                          {!isAdding && (
+                            <Button
+                              variant='outline'
+                              size='sm'
+                              className='h-7 shrink-0'
+                              onClick={() => setAddingConsumable({ id: c.id, qty: c.currentQuantity })}
+                              disabled={isLoading}
+                            >
+                              {isLoading ? <span className='text-xs'>…</span> : <><Plus className='mr-1 h-3.5 w-3.5' />{t('common.add', 'Add')}</>}
+                            </Button>
+                          )}
+                        </div>
+                        {isAdding && (
+                          <div className='flex items-center gap-2 px-3 pb-2'>
+                            <label className='text-xs text-muted-foreground shrink-0'>{t('tools.consumables.fields.quantity', 'Qty')}:</label>
+                            <Input
+                              type='number'
+                              min={1}
+                              max={c.currentQuantity}
+                              value={addingConsumable.qty}
+                              onChange={(e) => setAddingConsumable({ id: c.id, qty: Math.max(1, Math.min(c.currentQuantity, Number(e.target.value))) })}
+                              className='h-7 w-20 text-sm'
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleAddConsumable(c, addingConsumable.qty);
+                                if (e.key === 'Escape') setAddingConsumable(null);
+                              }}
+                            />
+                            <span className='text-xs text-muted-foreground'>/ {c.currentQuantity}</span>
+                            <Button size='sm' className='h-7 px-3' onClick={() => handleAddConsumable(c, addingConsumable.qty)}>
+                              {t('common.confirm', 'Confirm')}
+                            </Button>
+                            <Button variant='ghost' size='sm' className='h-7 px-2' onClick={() => setAddingConsumable(null)}>
+                              <X className='h-3.5 w-3.5' />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       <AlertDialog open={convertDialogOpen} onOpenChange={setConvertDialogOpen}>

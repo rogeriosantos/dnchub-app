@@ -985,3 +985,26 @@ export interface TripApiResponse {
   created_at: string;
   updated_at: string;
 }
+
+export interface ConsumableResponse {
+  id: string;
+  organization_id: string;
+  erp_code: string;
+  name: string;
+  description: string | null;
+  brand: string | null;
+  model: string | null;
+  unit: string;
+  current_quantity: number;
+  minimum_quantity: number;
+  reorder_quantity: number | null;
+  status: string;
+  case_id: string | null;
+  category_id: string | null;
+  location_id: string | null;
+  purchase_date: string | null;
+  purchase_price: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}

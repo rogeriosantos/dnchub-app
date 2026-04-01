@@ -2,11 +2,10 @@
 
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,10 +36,8 @@ import {
   Trash2,
   RefreshCw,
   AlertCircle,
-  ArrowUp,
-  ArrowDown,
-  ArrowUpDown,
 } from 'lucide-react';
+import { DataTable, ColumnDef } from '@/components/ui/data-table';
 import { toolLocationsService, toolsService } from '@/lib/api';
 import { matchesSearch } from '@/lib/utils';
 import { useApi, useMutation, formatApiError } from '@/lib/hooks';
@@ -100,44 +97,6 @@ export default function ToolLocationsPage() {
     });
   }, [locations, searchQuery, activeFilter]);
 
-  const [sortKey, setSortKey] = React.useState('');
-  const [sortDir, setSortDir] = React.useState<'asc' | 'desc'>('asc');
-
-  const handleSort = (key: string) => {
-    if (sortKey === key) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortKey(key);
-      setSortDir('asc');
-    }
-  };
-
-  const sortedLocations = React.useMemo(() => {
-    if (!sortKey) return filteredLocations;
-    return [...filteredLocations].sort((a, b) => {
-      let aVal: string | number;
-      let bVal: string | number;
-      if (['total', 'available', 'assigned'].includes(sortKey)) {
-        const aStats = locationStats.get(a.id) ?? { total: 0, available: 0, assigned: 0 };
-        const bStats = locationStats.get(b.id) ?? { total: 0, available: 0, assigned: 0 };
-        aVal = aStats[sortKey as 'total' | 'available' | 'assigned'];
-        bVal = bStats[sortKey as 'total' | 'available' | 'assigned'];
-      } else if (sortKey === 'isActive') {
-        aVal = a.isActive ? 1 : 0;
-        bVal = b.isActive ? 1 : 0;
-      } else {
-        aVal = String((a as Record<string, unknown>)[sortKey] ?? '');
-        bVal = String((b as Record<string, unknown>)[sortKey] ?? '');
-      }
-      if (typeof aVal === 'number' && typeof bVal === 'number') {
-        return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
-      }
-      return sortDir === 'asc'
-        ? String(aVal).localeCompare(String(bVal))
-        : String(bVal).localeCompare(String(aVal));
-    });
-  }, [filteredLocations, sortKey, sortDir, locationStats]);
-
   const openCreateDialog = () => {
     setEditingLocation(null);
     setFormName('');
@@ -189,6 +148,65 @@ export default function ToolLocationsPage() {
     }
   };
 
+  const columns = React.useMemo((): ColumnDef<ToolLocation>[] => [
+    {
+      id: 'name',
+      header: t('tools.fields.name', 'Name'),
+      accessorKey: 'name',
+      defaultWidth: 200,
+      cell: (loc) => (
+        <div className='flex items-center gap-3'>
+          <div className='flex h-10 w-10 items-center justify-center rounded-lg bg-muted shrink-0'>
+            <MapPin className='h-5 w-5 text-muted-foreground' />
+          </div>
+          <div className='min-w-0'>
+            <p className='font-medium truncate'>{loc.name}</p>
+            {loc.description && (
+              <p className='text-sm text-muted-foreground truncate'>{loc.description}</p>
+            )}
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: 'description',
+      header: t('tools.fields.address', 'Address'),
+      accessorKey: 'address',
+      defaultWidth: 250,
+      cell: (loc) => (
+        <span className='text-sm text-muted-foreground'>{loc.address || '—'}</span>
+      ),
+    },
+    {
+      id: 'isActive',
+      header: t('common.status', 'Status'),
+      accessorKey: 'isActive',
+      defaultWidth: 100,
+      sortValue: (loc) => loc.isActive ? 1 : 0,
+      cell: (loc) => (
+        <Badge variant={loc.isActive ? 'default' : 'secondary'}>
+          {loc.isActive ? t('common.active', 'Active') : t('common.inactive', 'Inactive')}
+        </Badge>
+      ),
+    },
+    {
+      id: 'actions',
+      header: '',
+      defaultWidth: 60,
+      enableSorting: false,
+      cell: (loc) => (
+        <div className='flex items-center gap-1'>
+          <Button variant='ghost' size='icon' onClick={() => openEditDialog(loc)}>
+            <Pencil className='h-4 w-4' />
+          </Button>
+          <Button variant='ghost' size='icon' onClick={() => { setLocationToDelete(loc); setDeleteDialogOpen(true); }}>
+            <Trash2 className='h-4 w-4 text-destructive' />
+          </Button>
+        </div>
+      ),
+    },
+  ], [t, locationStats, openEditDialog, setLocationToDelete, setDeleteDialogOpen]);
+
   if (isLoading) {
     return (
       <div className='space-y-6'>
@@ -220,13 +238,6 @@ export default function ToolLocationsPage() {
       </div>
     );
   }
-
-  const sortIcon = (key: string) =>
-    sortKey === key
-      ? sortDir === 'asc'
-        ? <ArrowUp className='h-3 w-3 ml-1 shrink-0' />
-        : <ArrowDown className='h-3 w-3 ml-1 shrink-0' />
-      : <ArrowUpDown className='h-3 w-3 ml-1 shrink-0 opacity-40' />;
 
   return (
     <div className='space-y-6'>
@@ -273,88 +284,13 @@ export default function ToolLocationsPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className='rounded-md border'>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead><button className='flex items-center hover:text-foreground' onClick={() => handleSort('name')}>{t('tools.fields.name', 'Name')}{sortIcon('name')}</button></TableHead>
-                  <TableHead><button className='flex items-center hover:text-foreground' onClick={() => handleSort('address')}>{t('tools.fields.address', 'Address')}{sortIcon('address')}</button></TableHead>
-                  <TableHead><button className='flex items-center hover:text-foreground' onClick={() => handleSort('isActive')}>{t('common.status', 'Status')}{sortIcon('isActive')}</button></TableHead>
-                  <TableHead className='text-center w-[80px]'><button className='flex items-center justify-center hover:text-foreground mx-auto' onClick={() => handleSort('total')}>{t('tools.categories.statTotal', 'Total')}{sortIcon('total')}</button></TableHead>
-                  <TableHead className='text-center w-[90px]'><button className='flex items-center justify-center hover:text-foreground mx-auto' onClick={() => handleSort('available')}>{t('tools.categories.statAvailable', 'Available')}{sortIcon('available')}</button></TableHead>
-                  <TableHead className='text-center w-[80px]'><button className='flex items-center justify-center hover:text-foreground mx-auto' onClick={() => handleSort('assigned')}>{t('tools.categories.statLended', 'Lended')}{sortIcon('assigned')}</button></TableHead>
-                  <TableHead className='w-[130px]'>{t('tools.categories.statPct', '% Lended')}</TableHead>
-                  <TableHead className='w-[100px]'></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedLocations.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className='text-center py-8'>
-                      <MapPin className='h-8 w-8 text-muted-foreground mx-auto' />
-                      <p className='mt-2 text-muted-foreground'>{t('tools.locations.noLocations', 'No locations found')}</p>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  sortedLocations.map((loc) => {
-                    const stats = locationStats.get(loc.id) ?? { total: 0, available: 0, assigned: 0 };
-                    const pct = stats.total > 0 ? Math.round((stats.assigned / stats.total) * 100) : 0;
-                    return (
-                      <TableRow key={loc.id}>
-                        <TableCell>
-                          <div className='flex items-center gap-3'>
-                            <div className='flex h-10 w-10 items-center justify-center rounded-lg bg-muted'>
-                              <MapPin className='h-5 w-5 text-muted-foreground' />
-                            </div>
-                            <div>
-                              <p className='font-medium'>{loc.name}</p>
-                              {loc.description && <p className='text-sm text-muted-foreground truncate max-w-xs'>{loc.description}</p>}
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>{loc.address || '—'}</TableCell>
-                        <TableCell>
-                          <Badge variant={loc.isActive ? 'default' : 'secondary'}>
-                            {loc.isActive ? t('common.active', 'Active') : t('common.inactive', 'Inactive')}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className='text-center'>
-                          <span className='font-medium'>{stats.total}</span>
-                        </TableCell>
-                        <TableCell className='text-center'>
-                          <span className='text-green-600 font-medium'>{stats.available}</span>
-                        </TableCell>
-                        <TableCell className='text-center'>
-                          <span className='text-amber-600 font-medium'>{stats.assigned}</span>
-                        </TableCell>
-                        <TableCell>
-                          <div className='flex items-center gap-2'>
-                            <div className='flex-1 h-1.5 rounded-full bg-muted overflow-hidden'>
-                              <div
-                                className='h-full rounded-full bg-amber-500 transition-all'
-                                style={{ width: `${pct}%` }}
-                              />
-                            </div>
-                            <span className='text-xs tabular-nums text-muted-foreground w-8 text-right'>{pct}%</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className='flex items-center gap-1'>
-                            <Button variant='ghost' size='icon' onClick={() => openEditDialog(loc)}>
-                              <Pencil className='h-4 w-4' />
-                            </Button>
-                            <Button variant='ghost' size='icon' onClick={() => { setLocationToDelete(loc); setDeleteDialogOpen(true); }}>
-                              <Trash2 className='h-4 w-4 text-destructive' />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </div>
+          <DataTable
+            tableId='tools-locations'
+            columns={columns}
+            data={filteredLocations}
+            rowKey={(row) => row.id}
+            defaultSortColumn='name'
+          />
         </CardContent>
       </Card>
 

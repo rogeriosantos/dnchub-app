@@ -1,5 +1,12 @@
 """Tool management module schemas."""
 
+from app.modules.tools.schemas.consumable import (
+    ConsumableAdjustQuantity,
+    ConsumableCreate,
+    ConsumableResponse,
+    ConsumableSummary,
+    ConsumableUpdate,
+)
 from app.modules.tools.schemas.tool import (
     ToolCreate,
     ToolResponse,
@@ -33,6 +40,12 @@ from app.modules.tools.schemas.tool_location import (
 )
 
 __all__ = [
+    # Consumable
+    "ConsumableCreate",
+    "ConsumableUpdate",
+    "ConsumableResponse",
+    "ConsumableSummary",
+    "ConsumableAdjustQuantity",
     # Tool
     "ToolCreate",
     "ToolUpdate",

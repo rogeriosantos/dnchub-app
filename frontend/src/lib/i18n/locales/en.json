@@ -160,7 +160,8 @@
       "cases": "Cases",
       "assignments": "Assignments",
       "locations": "Locations",
-      "categories": "Categories"
+      "categories": "Categories",
+      "consumables": "Consumables"
     },
     "reports": {
       "title": "Reports",
@@ -382,7 +383,14 @@
     "employeeId": "Employee ID",
     "licenseNumber": "License Number",
     "licenseExpiry": "License Expiry",
-    "licenseClass": "License Class",
+    "licenseClass": {
+      "label": "License Class",
+      "A": "Class A - Commercial",
+      "B": "Class B - Heavy Vehicles",
+      "C": "Class C - Regular",
+      "D": "Class D - Passenger",
+      "M": "Class M - Motorcycle"
+    },
     "dateOfBirth": "Date of Birth",
     "hireDate": "Hire Date",
     "address": "Address",
@@ -420,14 +428,6 @@
       "onBreak": "On Break",
       "on_trip": "On Trip",
       "onTrip": "On Trip"
-    },
-    "licenseClass": {
-      "label": "License Class",
-      "A": "Class A - Commercial",
-      "B": "Class B - Heavy Vehicles",
-      "C": "Class C - Regular",
-      "D": "Class D - Passenger",
-      "M": "Class M - Motorcycle"
     },
     "form": {
       "title": "Driver Details",
@@ -627,7 +627,20 @@
       "lpg": "LPG",
       "cng": "CNG"
     },
-    "analysis": "Fuel Analysis",
+    "analysis": {
+      "title": "Fuel Analysis",
+      "subtitle": "Analyze fuel consumption patterns and costs",
+      "export": "Export",
+      "periodSummary": "Period Summary",
+      "periodSummaryDescription": "{{count}} fuel entries from {{startDate}} to {{endDate}}",
+      "fillUps": "Fill-ups",
+      "vehicleFuelAnalysis": "Vehicle Fuel Analysis",
+      "vehicleAnalysisDescription": "Detailed breakdown by vehicle",
+      "totalFuel": "Total Fuel",
+      "avgEfficiency": "Avg Efficiency",
+      "noFuelData": "No fuel data for this period",
+      "timeRangePlaceholder": "Time range"
+    },
     "log": "Fuel Log",
     "logFuelEntry": "Log Fuel Entry",
     "recordNewPurchase": "Record a new fuel purchase",
@@ -728,20 +741,6 @@
         "priceGreaterThanZero": "Price per unit must be greater than 0",
         "odometerGreaterThanZero": "Odometer must be greater than 0"
       }
-    },
-    "analysis": {
-      "title": "Fuel Analysis",
-      "subtitle": "Analyze fuel consumption patterns and costs",
-      "export": "Export",
-      "periodSummary": "Period Summary",
-      "periodSummaryDescription": "{{count}} fuel entries from {{startDate}} to {{endDate}}",
-      "fillUps": "Fill-ups",
-      "vehicleFuelAnalysis": "Vehicle Fuel Analysis",
-      "vehicleAnalysisDescription": "Detailed breakdown by vehicle",
-      "totalFuel": "Total Fuel",
-      "avgEfficiency": "Avg Efficiency",
-      "noFuelData": "No fuel data for this period",
-      "timeRangePlaceholder": "Time range"
     },
     "errors": {
       "entryNotFound": "Entry Not Found",
@@ -1210,7 +1209,9 @@
       "locations": "Locations",
       "locationsDesc": "Manage storage locations and warehouses",
       "categories": "Categories",
-      "categoriesDesc": "Organize tools by category"
+      "categoriesDesc": "Organize tools by category",
+      "consumables": "Consumables",
+      "consumablesDesc": "Track consumable items by quantity"
     },
     "inventory": {
       "title": "Tool Inventory",
@@ -1244,7 +1245,20 @@
         "in_calibration": "In Calibration",
         "lost": "Lost",
         "retired": "Retired"
-      }
+      },
+      "consumablesInCase": "Consumables in this Case",
+      "consumablesInCaseDesc": "All consumable items stored in this case",
+      "noConsumablesInCase": "No consumables in this case",
+      "manageTools": "Tools in Case",
+      "manageToolsDesc": "Add or remove individual tools assigned to this case",
+      "noAvailableTools": "No unassigned tools available.",
+      "addTool": "Add a Tool",
+      "noTools": "No tools assigned to this case yet.",
+      "manageConsumables": "Consumables in Case",
+      "manageConsumablesDesc": "Add or remove consumables stored in this case",
+      "noConsumables": "No consumables in this case yet.",
+      "addConsumable": "Add a Consumable",
+      "noAvailableConsumables": "No unassigned consumables available."
     },
     "assignments": {
       "title": "Tool Assignments",
@@ -1419,6 +1433,58 @@
       "fair": "Fair",
       "needs_repair": "Needs Repair",
       "damaged": "Damaged"
+    },
+    "consumables": {
+      "title": "Consumables",
+      "subtitle": "Manage consumable items tracked by quantity",
+      "addConsumable": "Add Consumable",
+      "addConsumableDesc": "Register a new consumable item",
+      "createConsumable": "Create Consumable",
+      "editConsumable": "Edit Consumable",
+      "notFound": "Consumable not found",
+      "failedToCreate": "Failed to create consumable.",
+      "failedToUpdate": "Failed to update consumable.",
+      "deleteTitle": "Delete Consumable",
+      "deleteDesc": "Are you sure you want to delete this consumable? This action cannot be undone.",
+      "adjustQty": "Adjust Quantity",
+      "adjustQtyDesc": "Add or remove items from stock.",
+      "currentQty": "Current Qty",
+      "minimumQty": "Minimum Qty",
+      "reorderQty": "Reorder Qty",
+      "newQty": "New Quantity",
+      "unit": "Unit",
+      "case": "Case",
+      "storedInCase": "Stored in Case",
+      "belowMinimum": "Quantity is at or below the minimum threshold",
+      "basicInfoDesc": "Consumable identification details",
+      "quantitySection": "Quantity & Unit",
+      "classificationSection": "Classification & Storage",
+      "purchaseSection": "Purchase Information",
+      "detailsSection": "Details",
+      "storageSection": "Storage",
+      "status": {
+        "in_stock": "In Stock",
+        "low_stock": "Low Stock",
+        "out_of_stock": "Out of Stock",
+        "ordered": "Ordered",
+        "retired": "Retired"
+      },
+      "units": {
+        "piece": "Piece",
+        "box": "Box",
+        "pair": "Pair",
+        "set": "Set",
+        "kg": "Kilogram",
+        "gram": "Gram",
+        "liter": "Liter",
+        "ml": "Milliliter",
+        "meter": "Meter",
+        "roll": "Roll",
+        "can": "Can",
+        "bottle": "Bottle",
+        "tube": "Tube",
+        "sheet": "Sheet"
+      }
     }
   }
 }

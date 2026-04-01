@@ -27,6 +27,7 @@ export {
   toolsService,
   toolAssignmentsService,
   toolCalibrationsService,
+  consumablesService,
 } from "./tools";
 
 // Types
@@ -76,6 +77,7 @@ export type {
   ToolResponse,
   ToolAssignmentResponse,
   ToolCalibrationResponse,
+  ConsumableResponse,
 } from "./types";
 
 // List params
@@ -90,6 +92,7 @@ export type {
   ToolCaseListParams,
   ToolAssignmentListParams,
   ToolCalibrationListParams,
+  ConsumableListParams,
 } from "./tools";
 
 // Transformers (for custom use cases)
@@ -130,5 +133,7 @@ export {
   transformToolAssignments,
   transformToolCalibration,
   transformToolCalibrations,
+  transformConsumable,
+  transformConsumables,
   toSnakeCase,
 } from "./transformers";

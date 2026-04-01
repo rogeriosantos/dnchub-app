@@ -7,7 +7,6 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   DropdownMenu,
@@ -37,16 +36,12 @@ import {
   Briefcase,
   RefreshCw,
   AlertCircle,
-  ChevronLeft,
-  ChevronRight,
-  ArrowUp,
-  ArrowDown,
-  ArrowUpDown,
 } from 'lucide-react';
-import { toolCasesService, toolAssignmentsService, toolsService, driversService, vehiclesService } from '@/lib/api';
+import { DataTable, ColumnDef } from '@/components/ui/data-table';
+import { toolCasesService, toolAssignmentsService, toolsService, driversService, vehiclesService, toolLocationsService } from '@/lib/api';
 import { useApi, useMutation, formatApiError } from '@/lib/hooks';
-import { formatDate, matchesSearch } from '@/lib/utils';
-import type { ToolCase, ToolAssignment, Tool, ToolStatus, ToolCondition, Driver, Vehicle } from '@/types';
+import { matchesSearch } from '@/lib/utils';
+import type { ToolCase, ToolAssignment, Tool, ToolStatus, ToolCondition, Driver, Vehicle, ToolLocation } from '@/types';
 
 const statusConfig: Record<ToolStatus, { labelKey: string; badge: 'default' | 'secondary' | 'destructive' | 'outline'; badgeClass?: string }> = {
   available: { labelKey: 'tools.cases.status.available', badge: 'default', badgeClass: 'bg-green-600 hover:bg-green-600/80 text-white' },
@@ -72,8 +67,6 @@ export default function ToolCasesPage() {
   const [conditionFilter, setConditionFilter] = React.useState<string>('all');
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
   const [caseToDelete, setCaseToDelete] = React.useState<ToolCase | null>(null);
-  const [currentPage, setCurrentPage] = React.useState(1);
-  const itemsPerPage = 25;
 
   const { data: cases, isLoading, error, refetch } = useApi<ToolCase[]>(
     React.useCallback(() => toolCasesService.getAll(), []),
@@ -100,6 +93,11 @@ export default function ToolCasesPage() {
     []
   );
 
+  const { data: locations } = useApi<ToolLocation[]>(
+    React.useCallback(() => toolLocationsService.getAll(), []),
+    []
+  );
+
   // Map case ID → tool count
   const caseToolsCountMap = React.useMemo(() => {
     const map = new Map<string, number>();
@@ -108,6 +106,13 @@ export default function ToolCasesPage() {
     });
     return map;
   }, [allTools]);
+
+  // Map location ID → location name
+  const locationNames = React.useMemo(() => {
+    const map = new Map<string, string>();
+    (locations || []).forEach((loc) => map.set(loc.id, loc.name));
+    return map;
+  }, [locations]);
 
   // Cross-reference cases with active assignments to derive real status
   const effectiveCases = React.useMemo(() => {
@@ -123,29 +128,6 @@ export default function ToolCasesPage() {
     });
   }, [cases, activeAssignments]);
 
-  // Map case ID → active assignment for quick lookup
-  const caseAssignmentMap = React.useMemo(() => {
-    const map = new Map<string, ToolAssignment>();
-    (activeAssignments || []).forEach((a) => {
-      if (a.caseId && !a.returnedAt) map.set(a.caseId, a);
-    });
-    return map;
-  }, [activeAssignments]);
-
-  const resolveAssignee = React.useCallback((assignment: ToolAssignment): string => {
-    if (assignment.assignedToEmployeeId) {
-      const emp = (employees || []).find((e) => e.id === assignment.assignedToEmployeeId);
-      return emp ? `${emp.firstName} ${emp.lastName}` : 'Employee';
-    }
-    if (assignment.assignedToVehicleId) {
-      const veh = (vehicles || []).find((v) => v.id === assignment.assignedToVehicleId);
-      return veh ? `${veh.make} ${veh.model} (${veh.registrationPlate})` : 'Vehicle';
-    }
-    if (assignment.department) return assignment.department;
-    if (assignment.section) return assignment.section;
-    return assignment.assignmentType;
-  }, [employees, vehicles]);
-
   const deleteMutation = useMutation((id: string) => toolCasesService.delete(id));
 
   const filteredCases = React.useMemo(() => {
@@ -158,37 +140,6 @@ export default function ToolCasesPage() {
     });
   }, [effectiveCases, searchQuery, statusFilter, conditionFilter]);
 
-  const [sortKey, setSortKey] = React.useState('');
-  const [sortDir, setSortDir] = React.useState<'asc' | 'desc'>('asc');
-
-  const handleSort = (key: string) => {
-    if (sortKey === key) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortKey(key);
-      setSortDir('asc');
-    }
-  };
-
-  const sortedCases = React.useMemo(() => {
-    if (!sortKey) return filteredCases;
-    return [...filteredCases].sort((a, b) => {
-      if (sortKey === 'toolsCount') {
-        const aNum = caseToolsCountMap.get(a.id) ?? 0;
-        const bNum = caseToolsCountMap.get(b.id) ?? 0;
-        return sortDir === 'asc' ? aNum - bNum : bNum - aNum;
-      }
-      const aVal = String((a as Record<string, unknown>)[sortKey] ?? '');
-      const bVal = String((b as Record<string, unknown>)[sortKey] ?? '');
-      return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
-    });
-  }, [filteredCases, sortKey, sortDir, caseToolsCountMap]);
-
-  React.useEffect(() => { setCurrentPage(1); }, [searchQuery, statusFilter, conditionFilter]);
-
-  const totalPages = Math.ceil(filteredCases.length / itemsPerPage);
-  const paginatedCases = sortedCases.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-
   const handleDeleteConfirm = async () => {
     if (!caseToDelete) return;
     try {
@@ -200,6 +151,117 @@ export default function ToolCasesPage() {
       console.error('Failed to delete case:', error);
     }
   };
+
+  const columns = React.useMemo((): ColumnDef<ToolCase>[] => [
+    {
+      id: 'name',
+      header: t('tools.fields.case', 'Case'),
+      accessorKey: 'name',
+      defaultWidth: 200,
+      cell: (toolCase) => (
+        <Link href={`/tools/cases/${toolCase.id}`} className='flex items-center gap-3 hover:underline'>
+          <div className='flex h-10 w-10 items-center justify-center rounded-lg bg-muted shrink-0'>
+            <Briefcase className='h-5 w-5 text-muted-foreground' />
+          </div>
+          <div className='min-w-0'>
+            <p className='font-medium truncate'>{toolCase.name}</p>
+            {toolCase.description && (
+              <p className='text-sm text-muted-foreground truncate'>{toolCase.description}</p>
+            )}
+          </div>
+        </Link>
+      ),
+    },
+    {
+      id: 'erpCode',
+      header: t('tools.fields.erpCode', 'ERP Code'),
+      accessorKey: 'erpCode',
+      defaultWidth: 120,
+      cell: (toolCase) => <span className='font-mono text-sm'>{toolCase.erpCode}</span>,
+    },
+    {
+      id: 'status',
+      header: t('common.status', 'Status'),
+      accessorKey: 'status',
+      defaultWidth: 130,
+      cell: (toolCase) => (
+        <Badge variant={statusConfig[toolCase.status].badge} className={statusConfig[toolCase.status].badgeClass}>
+          {t(statusConfig[toolCase.status].labelKey)}
+        </Badge>
+      ),
+    },
+    {
+      id: 'condition',
+      header: t('tools.fields.condition', 'Condition'),
+      accessorKey: 'condition',
+      defaultWidth: 130,
+      cell: (toolCase) => (
+        <Badge variant={conditionConfig[toolCase.condition].badge}>
+          {t(conditionConfig[toolCase.condition].labelKey)}
+        </Badge>
+      ),
+    },
+    {
+      id: 'location',
+      header: t('tools.fields.location', 'Location'),
+      defaultWidth: 140,
+      sortValue: (toolCase) => locationNames.get(toolCase.locationId ?? '') ?? '',
+      cell: (toolCase) => (
+        <span className='text-sm'>
+          {toolCase.locationId ? (locationNames.get(toolCase.locationId) ?? '—') : '—'}
+        </span>
+      ),
+    },
+    {
+      id: 'toolsCount',
+      header: t('tools.fields.tools', 'Tools'),
+      defaultWidth: 90,
+      sortValue: (toolCase) => caseToolsCountMap.get(toolCase.id) ?? 0,
+      cell: (toolCase) => {
+        const count = caseToolsCountMap.get(toolCase.id) ?? 0;
+        return count > 0
+          ? <Badge variant='secondary'>{count}</Badge>
+          : <span className='text-muted-foreground'>—</span>;
+      },
+    },
+    {
+      id: 'actions',
+      header: '',
+      defaultWidth: 60,
+      enableSorting: false,
+      cell: (toolCase) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant='ghost' size='icon'>
+              <MoreHorizontal className='h-4 w-4' />
+              <span className='sr-only'>Open menu</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align='end'>
+            <DropdownMenuLabel>{t('common.actions', 'Actions')}</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link href={`/tools/cases/${toolCase.id}`}>
+                <Eye className='mr-2 h-4 w-4' /> {t('common.viewDetails', 'View Details')}
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href={`/tools/cases/${toolCase.id}/edit`}>
+                <Pencil className='mr-2 h-4 w-4' /> {t('common.edit', 'Edit')}
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className='text-destructive'
+              onClick={() => { setCaseToDelete(toolCase); setDeleteDialogOpen(true); }}
+            >
+              <Trash2 className='mr-2 h-4 w-4' /> {t('common.delete', 'Delete')}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
+    },
+  ], [t, locationNames, caseToolsCountMap, setCaseToDelete, setDeleteDialogOpen]);
 
   if (isLoading) {
     return (
@@ -235,13 +297,6 @@ export default function ToolCasesPage() {
       </div>
     );
   }
-
-  const sortIcon = (key: string) =>
-    sortKey === key
-      ? sortDir === 'asc'
-        ? <ArrowUp className='h-3 w-3 ml-1 shrink-0' />
-        : <ArrowDown className='h-3 w-3 ml-1 shrink-0' />
-      : <ArrowUpDown className='h-3 w-3 ml-1 shrink-0 opacity-40' />;
 
   return (
     <div className='space-y-6'>
@@ -305,129 +360,13 @@ export default function ToolCasesPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className='rounded-md border'>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead><button className='flex items-center hover:text-foreground' onClick={() => handleSort('name')}>{t('tools.fields.case', 'Case')}{sortIcon('name')}</button></TableHead>
-                  <TableHead><button className='flex items-center hover:text-foreground' onClick={() => handleSort('erpCode')}>{t('tools.fields.erpCode', 'ERP Code')}{sortIcon('erpCode')}</button></TableHead>
-                  <TableHead><button className='flex items-center hover:text-foreground' onClick={() => handleSort('status')}>{t('common.status', 'Status')}{sortIcon('status')}</button></TableHead>
-                  <TableHead>{t('tools.fields.assignedTo', 'Assigned To')}</TableHead>
-                  <TableHead><button className='flex items-center hover:text-foreground' onClick={() => handleSort('condition')}>{t('tools.fields.condition', 'Condition')}{sortIcon('condition')}</button></TableHead>
-                  <TableHead><button className='flex items-center hover:text-foreground' onClick={() => handleSort('toolsCount')}>{t('tools.fields.tools', 'Tools')}{sortIcon('toolsCount')}</button></TableHead>
-                  <TableHead className='w-[50px]'></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {paginatedCases.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className='text-center py-8'>
-                      <div className='flex flex-col items-center gap-2'>
-                        <Briefcase className='h-8 w-8 text-muted-foreground' />
-                        <p className='text-muted-foreground'>{t('tools.cases.noCases', 'No cases found')}</p>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  paginatedCases.map((toolCase) => (
-                    <TableRow key={toolCase.id}>
-                      <TableCell>
-                        <Link href={`/tools/cases/${toolCase.id}`} className='flex items-center gap-3 hover:underline'>
-                          <div className='flex h-10 w-10 items-center justify-center rounded-lg bg-muted'>
-                            <Briefcase className='h-5 w-5 text-muted-foreground' />
-                          </div>
-                          <div>
-                            <p className='font-medium'>{toolCase.name}</p>
-                            {toolCase.description && (
-                              <p className='text-sm text-muted-foreground truncate max-w-xs'>{toolCase.description}</p>
-                            )}
-                          </div>
-                        </Link>
-                      </TableCell>
-                      <TableCell className='font-mono text-sm'>{toolCase.erpCode}</TableCell>
-                      <TableCell>
-                        <Badge variant={statusConfig[toolCase.status].badge} className={statusConfig[toolCase.status].badgeClass}>{t(statusConfig[toolCase.status].labelKey)}</Badge>
-                      </TableCell>
-                      <TableCell className='text-sm'>
-                        {(() => {
-                          const assignment = caseAssignmentMap.get(toolCase.id);
-                          if (!assignment) return <span className='text-muted-foreground'>—</span>;
-                          return (
-                            <div>
-                              <p className='font-medium'>{resolveAssignee(assignment)}</p>
-                              {assignment.assignedAt && (
-                                <p className='text-xs text-muted-foreground'>{formatDate(assignment.assignedAt)}</p>
-                              )}
-                            </div>
-                          );
-                        })()}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={conditionConfig[toolCase.condition].badge}>{t(conditionConfig[toolCase.condition].labelKey)}</Badge>
-                      </TableCell>
-                      <TableCell className='text-sm font-medium tabular-nums'>
-                        {(() => {
-                          const count = caseToolsCountMap.get(toolCase.id) ?? 0;
-                          return count > 0
-                            ? <Badge variant='secondary'>{count}</Badge>
-                            : <span className='text-muted-foreground'>—</span>;
-                        })()}
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant='ghost' size='icon'>
-                              <MoreHorizontal className='h-4 w-4' />
-                              <span className='sr-only'>Open menu</span>
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align='end'>
-                            <DropdownMenuLabel>{t('common.actions', 'Actions')}</DropdownMenuLabel>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem asChild>
-                              <Link href={`/tools/cases/${toolCase.id}`}>
-                                <Eye className='mr-2 h-4 w-4' /> {t('common.viewDetails', 'View Details')}
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem asChild>
-                              <Link href={`/tools/cases/${toolCase.id}/edit`}>
-                                <Pencil className='mr-2 h-4 w-4' /> {t('common.edit', 'Edit')}
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className='text-destructive'
-                              onClick={() => { setCaseToDelete(toolCase); setDeleteDialogOpen(true); }}
-                            >
-                              <Trash2 className='mr-2 h-4 w-4' /> {t('common.delete', 'Delete')}
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-
-          {/* Pagination */}
-          {filteredCases.length > itemsPerPage && (
-            <div className='flex items-center justify-between mt-4 pt-4 border-t'>
-              <span className='text-sm text-muted-foreground'>
-                {t('common.showing', 'Showing')} {(currentPage - 1) * itemsPerPage + 1}-{Math.min(currentPage * itemsPerPage, filteredCases.length)} {t('common.of', 'of')} {filteredCases.length}
-              </span>
-              <div className='flex items-center gap-1'>
-                <Button variant='outline' size='icon' className='h-8 w-8' onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1}>
-                  <ChevronLeft className='h-4 w-4' />
-                </Button>
-                <span className='text-sm px-2'>{currentPage} / {totalPages}</span>
-                <Button variant='outline' size='icon' className='h-8 w-8' onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
-                  <ChevronRight className='h-4 w-4' />
-                </Button>
-              </div>
-            </div>
-          )}
+          <DataTable
+            tableId='tools-cases'
+            columns={columns}
+            data={filteredCases}
+            rowKey={(row) => row.id}
+            defaultSortColumn='name'
+          />
         </CardContent>
       </Card>
 

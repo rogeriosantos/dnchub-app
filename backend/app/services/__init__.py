@@ -33,6 +33,7 @@ from app.modules.fleet.services.ticket import ticket_service  # noqa: F401
 from app.modules.fleet.services.vehicle import vehicle_group_service, vehicle_service  # noqa: F401
 
 # Tool module services
+from app.modules.tools.services.consumable import consumable_service  # noqa: F401
 from app.modules.tools.services.tool import tool_service  # noqa: F401
 from app.modules.tools.services.tool_assignment import tool_assignment_service  # noqa: F401
 from app.modules.tools.services.tool_calibration import tool_calibration_service  # noqa: F401
@@ -64,6 +65,7 @@ __all__ = [
     "notification_preferences_service",
     "dashboard_service",
     "ticket_service",
+    "consumable_service",
     "tool_service",
     "tool_category_service",
     "tool_location_service",

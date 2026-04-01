@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,10 +34,8 @@ import {
   Trash2,
   RefreshCw,
   AlertCircle,
-  ArrowUp,
-  ArrowDown,
-  ArrowUpDown,
 } from 'lucide-react';
+import { DataTable, ColumnDef } from '@/components/ui/data-table';
 import { toolCategoriesService, toolsService } from '@/lib/api';
 import { matchesSearch } from '@/lib/utils';
 import { useApi, useMutation, formatApiError } from '@/lib/hooks';
@@ -105,44 +102,6 @@ export default function ToolCategoriesPage() {
     });
   }, [categories, searchQuery, parentFilter, getParentName]);
 
-  const [sortKey, setSortKey] = React.useState('');
-  const [sortDir, setSortDir] = React.useState<'asc' | 'desc'>('asc');
-
-  const handleSort = (key: string) => {
-    if (sortKey === key) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortKey(key);
-      setSortDir('asc');
-    }
-  };
-
-  const sortedCategories = React.useMemo(() => {
-    if (!sortKey) return filteredCategories;
-    return [...filteredCategories].sort((a, b) => {
-      let aVal: string | number;
-      let bVal: string | number;
-      if (sortKey === 'parentName') {
-        aVal = getParentName(a.parentId);
-        bVal = getParentName(b.parentId);
-      } else if (['total', 'available', 'assigned'].includes(sortKey)) {
-        const aStats = categoryStats.get(a.id) ?? { total: 0, available: 0, assigned: 0 };
-        const bStats = categoryStats.get(b.id) ?? { total: 0, available: 0, assigned: 0 };
-        aVal = aStats[sortKey as 'total' | 'available' | 'assigned'];
-        bVal = bStats[sortKey as 'total' | 'available' | 'assigned'];
-      } else {
-        aVal = String((a as Record<string, unknown>)[sortKey] ?? '');
-        bVal = String((b as Record<string, unknown>)[sortKey] ?? '');
-      }
-      if (typeof aVal === 'number' && typeof bVal === 'number') {
-        return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
-      }
-      return sortDir === 'asc'
-        ? String(aVal).localeCompare(String(bVal))
-        : String(bVal).localeCompare(String(aVal));
-    });
-  }, [filteredCategories, sortKey, sortDir, getParentName, categoryStats]);
-
   const openCreateDialog = () => {
     setEditingCategory(null);
     setFormName('');
@@ -191,6 +150,83 @@ export default function ToolCategoriesPage() {
     }
   };
 
+  const columns = React.useMemo((): ColumnDef<ToolCategory>[] => [
+    {
+      id: 'name',
+      header: t('tools.fields.name', 'Name'),
+      accessorKey: 'name',
+      defaultWidth: 200,
+      cell: (cat) => (
+        <div className='flex items-center gap-3'>
+          <div className='flex h-10 w-10 items-center justify-center rounded-lg bg-muted shrink-0'>
+            <FolderTree className='h-5 w-5 text-muted-foreground' />
+          </div>
+          <p className='font-medium truncate'>{cat.name}</p>
+        </div>
+      ),
+    },
+    {
+      id: 'description',
+      header: t('tools.fields.description', 'Description'),
+      accessorKey: 'description',
+      defaultWidth: 260,
+      cell: (cat) => (
+        <span className='text-sm text-muted-foreground truncate block'>
+          {cat.description || '—'}
+        </span>
+      ),
+    },
+    {
+      id: 'toolCount',
+      header: t('tools.categories.statTotal', 'Tools'),
+      defaultWidth: 90,
+      sortValue: (cat) => categoryStats.get(cat.id)?.total ?? 0,
+      cell: (cat) => {
+        const stats = categoryStats.get(cat.id) ?? { total: 0, available: 0, assigned: 0 };
+        const pct = stats.total > 0 ? Math.round((stats.assigned / stats.total) * 100) : 0;
+        return (
+          <div className='space-y-1'>
+            <div className='flex items-center gap-2 text-sm'>
+              <span className='font-medium tabular-nums'>{stats.total}</span>
+              {stats.total > 0 && (
+                <span className='text-xs text-muted-foreground'>
+                  ({stats.available} avail.)
+                </span>
+              )}
+            </div>
+            {stats.total > 0 && (
+              <div className='flex items-center gap-1.5'>
+                <div className='flex-1 h-1 rounded-full bg-muted overflow-hidden'>
+                  <div
+                    className='h-full rounded-full bg-amber-500 transition-all'
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+                <span className='text-xs tabular-nums text-muted-foreground w-7 text-right'>{pct}%</span>
+              </div>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      id: 'actions',
+      header: '',
+      defaultWidth: 60,
+      enableSorting: false,
+      cell: (cat) => (
+        <div className='flex items-center gap-1'>
+          <Button variant='ghost' size='icon' onClick={() => openEditDialog(cat)}>
+            <Pencil className='h-4 w-4' />
+          </Button>
+          <Button variant='ghost' size='icon' onClick={() => { setCategoryToDelete(cat); setDeleteDialogOpen(true); }}>
+            <Trash2 className='h-4 w-4 text-destructive' />
+          </Button>
+        </div>
+      ),
+    },
+  ], [t, categoryStats, openEditDialog, setCategoryToDelete, setDeleteDialogOpen]);
+
   if (isLoading) {
     return (
       <div className='space-y-6'>
@@ -222,13 +258,6 @@ export default function ToolCategoriesPage() {
       </div>
     );
   }
-
-  const sortIcon = (key: string) =>
-    sortKey === key
-      ? sortDir === 'asc'
-        ? <ArrowUp className='h-3 w-3 ml-1 shrink-0' />
-        : <ArrowDown className='h-3 w-3 ml-1 shrink-0' />
-      : <ArrowUpDown className='h-3 w-3 ml-1 shrink-0 opacity-40' />;
 
   return (
     <div className='space-y-6'>
@@ -277,83 +306,13 @@ export default function ToolCategoriesPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className='rounded-md border'>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead><button className='flex items-center hover:text-foreground' onClick={() => handleSort('name')}>{t('tools.fields.name', 'Name')}{sortIcon('name')}</button></TableHead>
-                  <TableHead><button className='flex items-center hover:text-foreground' onClick={() => handleSort('description')}>{t('tools.fields.description', 'Description')}{sortIcon('description')}</button></TableHead>
-                  <TableHead><button className='flex items-center hover:text-foreground' onClick={() => handleSort('parentName')}>{t('tools.fields.parentCategory', 'Parent Category')}{sortIcon('parentName')}</button></TableHead>
-                  <TableHead className='text-center w-[80px]'><button className='flex items-center justify-center hover:text-foreground mx-auto' onClick={() => handleSort('total')}>{t('tools.categories.statTotal', 'Total')}{sortIcon('total')}</button></TableHead>
-                  <TableHead className='text-center w-[90px]'><button className='flex items-center justify-center hover:text-foreground mx-auto' onClick={() => handleSort('available')}>{t('tools.categories.statAvailable', 'Available')}{sortIcon('available')}</button></TableHead>
-                  <TableHead className='text-center w-[80px]'><button className='flex items-center justify-center hover:text-foreground mx-auto' onClick={() => handleSort('assigned')}>{t('tools.categories.statLended', 'Lended')}{sortIcon('assigned')}</button></TableHead>
-                  <TableHead className='w-[130px]'>{t('tools.categories.statPct', '% Lended')}</TableHead>
-                  <TableHead className='w-[100px]'></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedCategories.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className='text-center py-8'>
-                      <FolderTree className='h-8 w-8 text-muted-foreground mx-auto' />
-                      <p className='mt-2 text-muted-foreground'>{t('tools.categories.noCategories', 'No categories found')}</p>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  sortedCategories.map((cat) => {
-                    const stats = categoryStats.get(cat.id) ?? { total: 0, available: 0, assigned: 0 };
-                    const pct = stats.total > 0 ? Math.round((stats.assigned / stats.total) * 100) : 0;
-                    return (
-                      <TableRow key={cat.id}>
-                        <TableCell>
-                          <div className='flex items-center gap-3'>
-                            <div className='flex h-10 w-10 items-center justify-center rounded-lg bg-muted'>
-                              <FolderTree className='h-5 w-5 text-muted-foreground' />
-                            </div>
-                            <p className='font-medium'>{cat.name}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell className='text-sm text-muted-foreground truncate max-w-xs'>
-                          {cat.description || '—'}
-                        </TableCell>
-                        <TableCell>{getParentName(cat.parentId)}</TableCell>
-                        <TableCell className='text-center'>
-                          <span className='font-medium'>{stats.total}</span>
-                        </TableCell>
-                        <TableCell className='text-center'>
-                          <span className='text-green-600 font-medium'>{stats.available}</span>
-                        </TableCell>
-                        <TableCell className='text-center'>
-                          <span className='text-amber-600 font-medium'>{stats.assigned}</span>
-                        </TableCell>
-                        <TableCell>
-                          <div className='flex items-center gap-2'>
-                            <div className='flex-1 h-1.5 rounded-full bg-muted overflow-hidden'>
-                              <div
-                                className='h-full rounded-full bg-amber-500 transition-all'
-                                style={{ width: `${pct}%` }}
-                              />
-                            </div>
-                            <span className='text-xs tabular-nums text-muted-foreground w-8 text-right'>{pct}%</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className='flex items-center gap-1'>
-                            <Button variant='ghost' size='icon' onClick={() => openEditDialog(cat)}>
-                              <Pencil className='h-4 w-4' />
-                            </Button>
-                            <Button variant='ghost' size='icon' onClick={() => { setCategoryToDelete(cat); setDeleteDialogOpen(true); }}>
-                              <Trash2 className='h-4 w-4 text-destructive' />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </div>
+          <DataTable
+            tableId='tools-categories'
+            columns={columns}
+            data={filteredCategories}
+            rowKey={(row) => row.id}
+            defaultSortColumn='name'
+          />
         </CardContent>
       </Card>
 

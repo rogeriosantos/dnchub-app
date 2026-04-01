@@ -9,14 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -41,6 +33,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { DataTable, ColumnDef } from "@/components/ui/data-table";
 import { toast } from "sonner";
 import {
   Plus,
@@ -164,24 +157,181 @@ export default function TicketsPage() {
     loadData();
   }, []);
 
+  // Build lookup maps
+  const vehiclesMap = React.useMemo(() => {
+    const map: Record<string, Vehicle> = {};
+    vehicles.forEach((v) => { map[v.id] = v; });
+    return map;
+  }, [vehicles]);
+
+  const driversMap = React.useMemo(() => {
+    const map: Record<string, Driver> = {};
+    drivers.forEach((d) => { map[d.id] = d; });
+    return map;
+  }, [drivers]);
+
   // Filter tickets
-  const filteredTickets = tickets.filter((ticket) => {
-    const vehicle = vehicles.find((v) => v.id === ticket.vehicleId);
-    const driver = drivers.find((d) => d.id === ticket.driverId);
+  const filteredTickets = React.useMemo(() => {
+    return tickets.filter((ticket) => {
+      const vehicle = vehiclesMap[ticket.vehicleId];
+      const driver = ticket.driverId ? driversMap[ticket.driverId] : null;
 
-    const searchLower = searchQuery.toLowerCase();
-    const matchesSearch =
-      ticket.ticketNumber?.toLowerCase().includes(searchLower) ||
-      ticket.description?.toLowerCase().includes(searchLower) ||
-      ticket.violationLocation?.toLowerCase().includes(searchLower) ||
-      vehicle?.registrationPlate.toLowerCase().includes(searchLower) ||
-      (driver && `${driver.firstName} ${driver.lastName}`.toLowerCase().includes(searchLower));
+      const searchLower = searchQuery.toLowerCase();
+      const matchesSearchResult =
+        ticket.ticketNumber?.toLowerCase().includes(searchLower) ||
+        ticket.description?.toLowerCase().includes(searchLower) ||
+        ticket.violationLocation?.toLowerCase().includes(searchLower) ||
+        vehicle?.registrationPlate.toLowerCase().includes(searchLower) ||
+        (driver && `${driver.firstName} ${driver.lastName}`.toLowerCase().includes(searchLower));
 
-    const matchesStatus = statusFilter === "all" || ticket.status === statusFilter;
-    const matchesType = typeFilter === "all" || ticket.type === typeFilter;
+      const matchesStatus = statusFilter === "all" || ticket.status === statusFilter;
+      const matchesType = typeFilter === "all" || ticket.type === typeFilter;
 
-    return matchesSearch && matchesStatus && matchesType;
-  });
+      return matchesSearchResult && matchesStatus && matchesType;
+    });
+  }, [tickets, vehiclesMap, driversMap, searchQuery, statusFilter, typeFilter]);
+
+  // Column definitions
+  const columns = React.useMemo<ColumnDef<Ticket>[]>(
+    () => [
+      {
+        id: "vehicle",
+        header: t("tickets.table.vehicle"),
+        defaultWidth: 190,
+        sortValue: (row) => vehiclesMap[row.vehicleId]?.registrationPlate ?? "",
+        cell: (row) => {
+          const vehicle = vehiclesMap[row.vehicleId];
+          return vehicle ? (
+            <Link href={`/fleet/vehicles/${vehicle.id}`} className="hover:underline block">
+              <p className="font-medium truncate">{vehicle.registrationPlate}</p>
+              <p className="text-xs text-muted-foreground truncate">
+                {vehicle.make} {vehicle.model}
+              </p>
+            </Link>
+          ) : (
+            <span className="text-muted-foreground">{t("common.unknown")}</span>
+          );
+        },
+      },
+      {
+        id: "type",
+        header: t("tickets.table.type"),
+        accessorKey: "type",
+        defaultWidth: 120,
+        cell: (row) => (
+          <Badge variant="outline">{ticketTypeLabels[row.type]}</Badge>
+        ),
+      },
+      {
+        id: "issueDate",
+        header: t("tickets.table.violationDate"),
+        accessorKey: "violationDate",
+        defaultWidth: 130,
+        cell: (row) => <span>{formatDate(row.violationDate)}</span>,
+      },
+      {
+        id: "dueDate",
+        header: t("tickets.table.dueDate"),
+        accessorKey: "dueDate",
+        defaultWidth: 130,
+        cell: (row) => <span>{row.dueDate ? formatDate(row.dueDate) : "—"}</span>,
+      },
+      {
+        id: "amount",
+        header: t("tickets.table.amount"),
+        defaultWidth: 100,
+        sortValue: (row) => Number(row.amount),
+        cell: (row) => (
+          <span className="tabular-nums">{formatCurrency(row.amount)}</span>
+        ),
+      },
+      {
+        id: "status",
+        header: t("tickets.table.status"),
+        accessorKey: "status",
+        defaultWidth: 120,
+        cell: (row) => {
+          const StatusIcon = ticketStatusConfig[row.status].icon;
+          return (
+            <Badge variant={ticketStatusConfig[row.status].variant}>
+              <StatusIcon className="mr-1 h-3 w-3" />
+              {ticketStatusConfig[row.status].label}
+            </Badge>
+          );
+        },
+      },
+      {
+        id: "driver",
+        header: t("tickets.table.driver"),
+        defaultWidth: 150,
+        sortValue: (row) => {
+          const d = row.driverId ? driversMap[row.driverId] : null;
+          return d ? `${d.firstName} ${d.lastName}` : "";
+        },
+        cell: (row) => {
+          const driver = row.driverId ? driversMap[row.driverId] : null;
+          return driver ? (
+            <Link href={`/fleet/employees/${driver.id}`} className="hover:underline truncate block">
+              {driver.firstName} {driver.lastName}
+            </Link>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          );
+        },
+      },
+      {
+        id: "actions",
+        header: "",
+        defaultWidth: 60,
+        enableSorting: false,
+        cell: (row) => (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <MoreHorizontal className="h-4 w-4" />
+                <span className="sr-only">Open menu</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>{t("common.actions")}</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href={`/fleet/tickets/${row.id}`}>
+                  <Eye className="mr-2 h-4 w-4" />
+                  {t("common.viewDetails")}
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href={`/fleet/tickets/${row.id}/edit`}>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  {t("tickets.editTicket")}
+                </Link>
+              </DropdownMenuItem>
+              {(row.status === "pending" || row.status === "overdue") && (
+                <DropdownMenuItem
+                  onClick={() => handleMarkAsPaid(row.id)}
+                  disabled={actionLoading === row.id}
+                >
+                  <CreditCard className="mr-2 h-4 w-4" />
+                  {actionLoading === row.id ? t("common.processing") : t("tickets.markAsPaid")}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive"
+                onClick={() => setDeleteDialogTicketId(row.id)}
+                disabled={actionLoading === row.id}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                {actionLoading === row.id ? t("common.deleting") : t("common.delete")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ),
+      },
+    ],
+    [vehiclesMap, driversMap, ticketStatusConfig, ticketTypeLabels, t, actionLoading, handleMarkAsPaid, setDeleteDialogTicketId]
+  );
 
   // Loading state
   if (isLoading) {
@@ -357,139 +507,15 @@ export default function TicketsPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("tickets.table.ticketNumber")}</TableHead>
-                  <TableHead>{t("tickets.table.type")}</TableHead>
-                  <TableHead>{t("tickets.table.vehicle")}</TableHead>
-                  <TableHead>{t("tickets.table.driver")}</TableHead>
-                  <TableHead>{t("tickets.table.violationDate")}</TableHead>
-                  <TableHead>{t("tickets.table.dueDate")}</TableHead>
-                  <TableHead>{t("tickets.table.status")}</TableHead>
-                  <TableHead className="text-right">{t("tickets.table.amount")}</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredTickets.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8">
-                      <div className="flex flex-col items-center gap-2">
-                        <Receipt className="h-8 w-8 text-muted-foreground" />
-                        <p className="text-muted-foreground">{t("tickets.noTickets")}</p>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredTickets.map((ticket) => {
-                    const vehicle = vehicles.find((v) => v.id === ticket.vehicleId);
-                    const driver = drivers.find((d) => d.id === ticket.driverId);
-                    const StatusIcon = ticketStatusConfig[ticket.status].icon;
-                    return (
-                      <TableRow key={ticket.id}>
-                        <TableCell>
-                          <Link
-                            href={`/fleet/tickets/${ticket.id}`}
-                            className="font-medium hover:underline"
-                          >
-                            {ticket.ticketNumber || ticket.id.slice(0, 8)}
-                          </Link>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">
-                            {ticketTypeLabels[ticket.type]}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {vehicle ? (
-                            <Link
-                              href={`/fleet/vehicles/${vehicle.id}`}
-                              className="hover:underline"
-                            >
-                              {vehicle.registrationPlate}
-                            </Link>
-                          ) : (
-                            t("common.unknown")
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {driver ? (
-                            <Link
-                              href={`/fleet/employees/${driver.id}`}
-                              className="hover:underline"
-                            >
-                              {driver.firstName} {driver.lastName}
-                            </Link>
-                          ) : (
-                            "—"
-                          )}
-                        </TableCell>
-                        <TableCell>{formatDate(ticket.violationDate)}</TableCell>
-                        <TableCell>
-                          {ticket.dueDate ? formatDate(ticket.dueDate) : "—"}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={ticketStatusConfig[ticket.status].variant}>
-                            <StatusIcon className="mr-1 h-3 w-3" />
-                            {ticketStatusConfig[ticket.status].label}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {formatCurrency(ticket.amount)}
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreHorizontal className="h-4 w-4" />
-                                <span className="sr-only">Open menu</span>
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuLabel>{t("common.actions")}</DropdownMenuLabel>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem asChild>
-                                <Link href={`/fleet/tickets/${ticket.id}`}>
-                                  <Eye className="mr-2 h-4 w-4" />
-                                  {t("common.viewDetails")}
-                                </Link>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem asChild>
-                                <Link href={`/fleet/tickets/${ticket.id}/edit`}>
-                                  <Pencil className="mr-2 h-4 w-4" />
-                                  {t("tickets.editTicket")}
-                                </Link>
-                              </DropdownMenuItem>
-                              {(ticket.status === "pending" || ticket.status === "overdue") && (
-                                <DropdownMenuItem
-                                  onClick={() => handleMarkAsPaid(ticket.id)}
-                                  disabled={actionLoading === ticket.id}
-                                >
-                                  <CreditCard className="mr-2 h-4 w-4" />
-                                  {actionLoading === ticket.id ? t("common.processing") : t("tickets.markAsPaid")}
-                                </DropdownMenuItem>
-                              )}
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                className="text-destructive"
-                                onClick={() => setDeleteDialogTicketId(ticket.id)}
-                                disabled={actionLoading === ticket.id}
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                {actionLoading === ticket.id ? t("common.deleting") : t("common.delete")}
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </div>
+          <DataTable
+            tableId="fleet-tickets"
+            columns={columns}
+            data={filteredTickets}
+            isLoading={isLoading}
+            defaultSortColumn="issueDate"
+            defaultSortDir="desc"
+            rowKey={(row) => row.id}
+          />
         </CardContent>
       </Card>
 

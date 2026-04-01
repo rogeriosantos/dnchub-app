@@ -41,15 +41,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { DataTable, ColumnDef } from "@/components/ui/data-table";
 import {
   Users,
   Plus,
@@ -146,14 +139,16 @@ export default function UsersSettingsPage() {
   }, [loadUsers]);
 
   // Filter users
-  const filteredUsers = users.filter((user) => {
-    const fullName = `${user.firstName} ${user.lastName}`.toLowerCase();
-    const matchesSearch =
-      fullName.includes(searchQuery.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesRole = roleFilter === "all" || user.role === roleFilter;
-    return matchesSearch && matchesRole;
-  });
+  const filteredUsers = React.useMemo(() => {
+    return users.filter((user) => {
+      const fullName = `${user.firstName} ${user.lastName}`.toLowerCase();
+      const matchesSearch =
+        fullName.includes(searchQuery.toLowerCase()) ||
+        user.email.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesRole = roleFilter === "all" || user.role === roleFilter;
+      return matchesSearch && matchesRole;
+    });
+  }, [users, searchQuery, roleFilter]);
 
   const activeUsers = users.filter((u) => u.isActive).length;
   const inactiveUsers = users.length - activeUsers;
@@ -258,6 +253,104 @@ export default function UsersSettingsPage() {
       setIsDeleting(false);
     }
   };
+
+  // Column definitions
+  const columns = React.useMemo<ColumnDef<User>[]>(
+    () => [
+      {
+        id: "firstName",
+        header: "User",
+        defaultWidth: 240,
+        sortValue: (row) => `${row.firstName} ${row.lastName}`,
+        cell: (row) => (
+          <div className="flex items-center gap-3">
+            <Avatar>
+              <AvatarFallback>
+                {getInitials(`${row.firstName} ${row.lastName}`)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <p className="font-medium truncate">{row.firstName} {row.lastName}</p>
+              <p className="text-sm text-muted-foreground truncate">{row.email}</p>
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: "role",
+        header: "Role",
+        accessorKey: "role",
+        defaultWidth: 120,
+        cell: (row) => (
+          <Badge className={roleColors[row.role] || roleColors.viewer}>
+            {roleLabels[row.role] || row.role}
+          </Badge>
+        ),
+      },
+      {
+        id: "status",
+        header: "Status",
+        defaultWidth: 110,
+        sortValue: (row) => row.isActive ? "active" : "inactive",
+        cell: (row) => (
+          <Badge variant={row.isActive ? "default" : "secondary"}>
+            {row.isActive ? "active" : "inactive"}
+          </Badge>
+        ),
+      },
+      {
+        id: "createdAt",
+        header: "Last Login",
+        defaultWidth: 130,
+        sortValue: (row) => row.lastLogin ?? "",
+        cell: (row) => (
+          <span className="text-sm text-muted-foreground">
+            {row.lastLogin ? formatDate(row.lastLogin) : "Never"}
+          </span>
+        ),
+      },
+      {
+        id: "actions",
+        header: "",
+        defaultWidth: 60,
+        enableSorting: false,
+        cell: (row) => (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => openEditDialog(row)}>
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit User
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                <Shield className="mr-2 h-4 w-4" />
+                Change Role
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                <Mail className="mr-2 h-4 w-4" />
+                Reset Password
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive"
+                onClick={() => openDeleteDialog(row)}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Deactivate
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ),
+      },
+    ],
+    [openEditDialog, openDeleteDialog]
+  );
 
   // Loading skeleton
   if (isLoading) {
@@ -533,97 +626,14 @@ export default function UsersSettingsPage() {
           <CardDescription>Manage user accounts and their access levels</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>User</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Last Login</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredUsers.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8">
-                      <div className="flex flex-col items-center gap-2">
-                        <Users className="h-8 w-8 text-muted-foreground" />
-                        <p className="text-muted-foreground">No users found</p>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredUsers.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar>
-                            <AvatarFallback>
-                              {getInitials(`${user.firstName} ${user.lastName}`)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="font-medium">{user.firstName} {user.lastName}</p>
-                            <p className="text-sm text-muted-foreground">{user.email}</p>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={roleColors[user.role] || roleColors.viewer}>
-                          {roleLabels[user.role] || user.role}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={user.isActive ? "default" : "secondary"}>
-                          {user.isActive ? "active" : "inactive"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {user.lastLogin
-                          ? formatDate(user.lastLogin)
-                          : "Never"}
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => openEditDialog(user)}>
-                              <Pencil className="mr-2 h-4 w-4" />
-                              Edit User
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <Shield className="mr-2 h-4 w-4" />
-                              Change Role
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <Mail className="mr-2 h-4 w-4" />
-                              Reset Password
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-destructive"
-                              onClick={() => openDeleteDialog(user)}
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Deactivate
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+          <DataTable
+            tableId="settings-users"
+            columns={columns}
+            data={filteredUsers}
+            isLoading={isLoading}
+            defaultSortColumn="firstName"
+            rowKey={(row) => row.id}
+          />
         </CardContent>
       </Card>
 
