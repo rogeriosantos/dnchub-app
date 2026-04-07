@@ -923,6 +923,13 @@ export const toolsNavigation: NavItem[] = [
     roles: ["admin", "fleet_manager", "operator", "technician"],
   },
   {
+    id: "nav-tools-technicians",
+    label: "navigation.tools.technicians",
+    icon: "HardHat",
+    url: "/tools/technicians",
+    roles: ["admin", "fleet_manager", "operator", "technician"],
+  },
+  {
     id: "nav-tools-locations",
     label: "navigation.tools.locations",
     icon: "MapPin",

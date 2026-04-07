@@ -161,7 +161,8 @@
       "assignments": "AtribuiÃ§Ãµes",
       "locations": "Locais",
       "categories": "Categorias",
-      "consumables": "Consumíveis"
+      "consumables": "Consumíveis",
+      "technicians": "Técnicos"
     },
     "reports": {
       "title": "RelatÃ³rios",
@@ -1485,6 +1486,28 @@
         "tube": "Tubo",
         "sheet": "Folha"
       }
+    }
+  },
+  "technicians": {
+    "title": "Técnicos",
+    "subtitle": "Técnicos e as suas ferramentas atribuídas",
+    "loadingTechnicians": "A carregar técnicos...",
+    "failedToLoad": "Falha ao carregar técnicos",
+    "noTechnicians": "Nenhum técnico encontrado",
+    "noToolsAssigned": "Sem ferramentas atribuídas",
+    "searchPlaceholder": "Pesquisar por nome, ID ou ferramenta...",
+    "assignedTools": "{{count}} item(s) atribuído(s)",
+    "table": {
+      "technician": "Técnico",
+      "tool": "Ferramenta / Maleta",
+      "condition": "Condição",
+      "assignedSince": "Atribuído desde"
+    },
+    "stats": {
+      "total": "Total de Técnicos",
+      "activeAssignments": "Atribuições Ativas",
+      "withTools": "Com Ferramentas",
+      "withoutTools": "Sem Ferramentas"
     }
   }
 }

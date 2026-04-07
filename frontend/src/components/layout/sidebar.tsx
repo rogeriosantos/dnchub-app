@@ -60,6 +60,7 @@ import {
   Plug,
   UserCircle,
   ShieldCheck,
+  HardHat,
   type LucideIcon,
 } from "lucide-react";
 import type { NavItem } from "@/types";
@@ -107,6 +108,7 @@ const iconMap: Record<string, LucideIcon> = {
   Plug,
   UserCircle,
   ShieldCheck,
+  HardHat,
 };
 
 interface SidebarProps {

@@ -161,7 +161,8 @@
       "assignments": "Assignments",
       "locations": "Locations",
       "categories": "Categories",
-      "consumables": "Consumables"
+      "consumables": "Consumables",
+      "technicians": "Technicians"
     },
     "reports": {
       "title": "Reports",
@@ -1485,6 +1486,28 @@
         "tube": "Tube",
         "sheet": "Sheet"
       }
+    }
+  },
+  "technicians": {
+    "title": "Technicians",
+    "subtitle": "Technicians and their assigned tools",
+    "loadingTechnicians": "Loading technicians...",
+    "failedToLoad": "Failed to load technicians",
+    "noTechnicians": "No technicians found",
+    "noToolsAssigned": "No tools currently assigned",
+    "searchPlaceholder": "Search by name, ID or tool...",
+    "assignedTools": "{{count}} item(s) assigned",
+    "table": {
+      "technician": "Technician",
+      "tool": "Tool / Case",
+      "condition": "Condition",
+      "assignedSince": "Assigned Since"
+    },
+    "stats": {
+      "total": "Total Technicians",
+      "activeAssignments": "Active Assignments",
+      "withTools": "With Tools",
+      "withoutTools": "Without Tools"
     }
   }
 }
