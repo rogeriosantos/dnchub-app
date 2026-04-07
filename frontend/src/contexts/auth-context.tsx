@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { authService, tokenStorage } from "@/lib/api";
 import type { RegisterRequest } from "@/lib/api/auth";
 import type { User } from "@/types";
+import { changeLanguage } from "@/lib/i18n";
 
 interface AuthContextType {
   user: User | null;
@@ -50,6 +51,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           const currentUser = await authService.getCurrentUser();
           setUser(currentUser);
+          changeLanguage(currentUser.language);
         } catch (error) {
           // Token is invalid or expired
           console.error("Auth check failed:", error);
@@ -78,12 +80,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = React.useCallback(async (email: string, password: string) => {
     const result = await authService.login(email, password);
     setUser(result.user);
+    changeLanguage(result.user.language);
     router.push("/dashboard");
   }, [router]);
 
   const register = React.useCallback(async (data: RegisterRequest) => {
     const result = await authService.register(data);
     setUser(result.user);
+    changeLanguage(result.user.language);
     router.push("/dashboard");
   }, [router]);
 
@@ -98,6 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const currentUser = await authService.getCurrentUser();
         setUser(currentUser);
+        changeLanguage(currentUser.language);
       } catch (error) {
         console.error("Failed to refresh user:", error);
         logout();
