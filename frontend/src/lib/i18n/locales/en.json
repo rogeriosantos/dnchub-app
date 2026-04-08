@@ -99,6 +99,34 @@
       "hasAccount": "Already have an account?",
       "signIn": "Sign in"
     },
+    "forgotPassword": {
+      "title": "Forgot password?",
+      "subtitle": "Enter your email and we'll send you a reset link.",
+      "email": "Email address",
+      "emailPlaceholder": "name@company.com",
+      "submit": "Send reset link",
+      "submitting": "Sending...",
+      "backToLogin": "Back to login",
+      "successTitle": "Check your email",
+      "successMessage": "If an account with that email exists, we've sent a password reset link. It expires in 1 hour.",
+      "errorGeneric": "Something went wrong. Please try again."
+    },
+    "resetPassword": {
+      "title": "Set new password",
+      "subtitle": "Enter your new password below.",
+      "newPassword": "New password",
+      "newPasswordPlaceholder": "At least 8 characters",
+      "confirmPassword": "Confirm password",
+      "confirmPasswordPlaceholder": "Repeat your new password",
+      "submit": "Reset password",
+      "submitting": "Resetting...",
+      "successTitle": "Password reset!",
+      "successMessage": "Your password has been updated. You can now sign in.",
+      "goToLogin": "Go to login",
+      "invalidToken": "This reset link is invalid or has expired.",
+      "passwordMismatch": "Passwords do not match.",
+      "errorGeneric": "Something went wrong. Please try again."
+    },
     "logout": "Sign out",
     "profile": "Profile",
     "settings": "Settings"
