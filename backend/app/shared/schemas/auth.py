@@ -94,3 +94,28 @@ class MessagingChannelsResponse(BaseSchema):
     channels: list[str]
     email_enabled: bool
     whatsapp_enabled: bool
+
+
+class ForgotPasswordRequest(BaseSchema):
+    """Request to initiate password reset."""
+
+    email: EmailStr
+
+
+class ForgotPasswordResponse(BaseSchema):
+    """Response for forgot password request (always success to prevent enumeration)."""
+
+    message: str
+
+
+class ResetPasswordRequest(BaseSchema):
+    """Request to complete password reset."""
+
+    token: str
+    new_password: str = Field(..., min_length=8)
+
+
+class ResetPasswordResponse(BaseSchema):
+    """Response for reset password request."""
+
+    message: str
