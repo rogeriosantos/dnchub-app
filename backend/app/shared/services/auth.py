@@ -1,8 +1,10 @@
 """Authentication service."""
 
+import hashlib
 import random
+import secrets
 import string
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -219,6 +221,74 @@ class AuthService:
             expires_in=settings.access_token_expire_minutes * 60,
         )
 
+
+    def forgot_password(
+        self,
+        db: Session,
+        email: str,
+    ) -> None:
+        """Initiate password reset. Silent on unknown email to prevent enumeration."""
+        from app.core.config import settings
+        from app.shared.services.messaging import messaging_service
+
+        result = db.execute(
+            select(User).where(
+                User.email == email,
+                User.is_active == True,
+                User.deleted_at.is_(None),
+            )
+        )
+        user = result.scalar_one_or_none()
+
+        if user is None:
+            return  # Silent — do not reveal whether email exists
+
+        # Generate token: raw value goes in the email, hash is stored in DB
+        raw_token = secrets.token_urlsafe(32)
+        token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+
+        user.password_reset_token = token_hash
+        user.password_reset_expires = datetime.now(timezone.utc) + timedelta(hours=1)
+        db.add(user)
+        db.commit()
+
+        reset_url = f"{settings.frontend_url}/reset-password?token={raw_token}"
+        messaging_service.send_password_reset_email(
+            to_email=user.email,
+            user_name=user.first_name,
+            reset_url=reset_url,
+        )
+
+    def reset_password(
+        self,
+        db: Session,
+        raw_token: str,
+        new_password: str,
+    ) -> None:
+        """Complete password reset using the token from the email link."""
+        from app.core.security import get_password_hash
+
+        token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+        now = datetime.now(timezone.utc)
+
+        result = db.execute(
+            select(User).where(
+                User.password_reset_token == token_hash,
+                User.password_reset_expires > now,
+                User.is_active == True,
+                User.deleted_at.is_(None),
+            )
+        )
+        user = result.scalar_one_or_none()
+
+        if user is None:
+            raise ValidationError("Invalid or expired reset link. Please request a new one.")
+
+        user.password_hash = get_password_hash(new_password)
+        user.password_reset_token = None
+        user.password_reset_expires = None
+        db.add(user)
+        db.commit()
 
     def reset_employee_pin(
         self,
