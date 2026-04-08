@@ -51,3 +51,4 @@ Thumbs.db
 
 # Claude temp files
 tmpclaude-*-cwd
+.vercel
