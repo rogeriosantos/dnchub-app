@@ -99,6 +99,34 @@
       "hasAccount": "JÃ¡ tem uma conta?",
       "signIn": "Entrar"
     },
+    "forgotPassword": {
+      "title": "Esqueceu a palavra-passe?",
+      "subtitle": "Introduza o seu email e enviaremos um link de recuperação.",
+      "email": "Endereço de email",
+      "emailPlaceholder": "nome@empresa.com",
+      "submit": "Enviar link de recuperação",
+      "submitting": "A enviar...",
+      "backToLogin": "Voltar ao login",
+      "successTitle": "Verifique o seu email",
+      "successMessage": "Se existir uma conta com esse email, enviámos um link de recuperação. Expira em 1 hora.",
+      "errorGeneric": "Ocorreu um erro. Por favor tente novamente."
+    },
+    "resetPassword": {
+      "title": "Definir nova palavra-passe",
+      "subtitle": "Introduza a sua nova palavra-passe abaixo.",
+      "newPassword": "Nova palavra-passe",
+      "newPasswordPlaceholder": "Pelo menos 8 caracteres",
+      "confirmPassword": "Confirmar palavra-passe",
+      "confirmPasswordPlaceholder": "Repita a nova palavra-passe",
+      "submit": "Redefinir palavra-passe",
+      "submitting": "A redefinir...",
+      "successTitle": "Palavra-passe redefinida!",
+      "successMessage": "A sua palavra-passe foi atualizada. Pode iniciar sessão agora.",
+      "goToLogin": "Ir para o login",
+      "invalidToken": "Este link de recuperação é inválido ou expirou.",
+      "passwordMismatch": "As palavras-passe não coincidem.",
+      "errorGeneric": "Ocorreu um erro. Por favor tente novamente."
+    },
     "logout": "Sair",
     "profile": "Perfil",
     "settings": "ConfiguraÃ§Ãµes"
