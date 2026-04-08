@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     # Logging
     log_level: str = "INFO"
 
+    # Frontend URL (for password reset links)
+    frontend_url: str = "http://localhost:3000"
+
     # Email Configuration (for PIN reset, etc.)
     smtp_host: str = ""
     smtp_port: int = 587
