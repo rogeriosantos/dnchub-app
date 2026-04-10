@@ -65,6 +65,17 @@ from app.modules.fleet.models.maintenance import MaintenanceSchedule, Maintenanc
 from app.modules.fleet.models.ticket import Ticket
 from app.modules.fleet.models.vehicle import Vehicle, VehicleGroup, VehicleGroupMember
 
+# SAT module models
+from app.modules.sat.models.assistance import SatAssistance
+from app.modules.sat.models.attachment import SatAttachment
+from app.modules.sat.models.contact import SatContact
+from app.modules.sat.models.customer import SatCustomer
+from app.modules.sat.models.employee_specialization import SatEmployeeSpecialization
+from app.modules.sat.models.intervention_report import SatInterventionReport
+from app.modules.sat.models.machine import SatMachine
+from app.modules.sat.models.service_type import SatServiceType
+from app.modules.sat.models.specialization import SatSpecialization
+
 # Tool module models
 from app.modules.tools.models.consumable import Consumable
 from app.modules.tools.models.tool import Tool
@@ -106,6 +117,16 @@ __all__ = [
     "ToolCase",
     "ToolCategory",
     "ToolLocation",
+    # SAT
+    "SatAssistance",
+    "SatAttachment",
+    "SatContact",
+    "SatCustomer",
+    "SatEmployeeSpecialization",
+    "SatInterventionReport",
+    "SatMachine",
+    "SatServiceType",
+    "SatSpecialization",
     # Enums
     "AlertSeverity",
     "AlertType",
