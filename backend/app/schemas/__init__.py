@@ -200,6 +200,48 @@ from app.modules.tools.schemas.tool_location import (  # noqa: F401
     ToolLocationUpdate,
 )
 
+# SAT module schemas
+from app.modules.sat.schemas.service_type import (  # noqa: F401
+    SatServiceTypeCreate,
+    SatServiceTypeResponse,
+    SatServiceTypeUpdate,
+)
+from app.modules.sat.schemas.specialization import (  # noqa: F401
+    SatSpecializationCreate,
+    SatSpecializationResponse,
+    SatSpecializationUpdate,
+)
+from app.modules.sat.schemas.customer import (  # noqa: F401
+    SatCustomerCreate,
+    SatCustomerResponse,
+    SatCustomerUpdate,
+)
+from app.modules.sat.schemas.contact import (  # noqa: F401
+    SatContactCreate,
+    SatContactResponse,
+    SatContactUpdate,
+)
+from app.modules.sat.schemas.machine import (  # noqa: F401
+    SatMachineCreate,
+    SatMachineResponse,
+    SatMachineUpdate,
+)
+from app.modules.sat.schemas.assistance import (  # noqa: F401
+    SatAssistanceCreate,
+    SatAssistanceResponse,
+    SatAssistanceStatusUpdate,
+    SatAssistanceUpdate,
+)
+from app.modules.sat.schemas.intervention_report import (  # noqa: F401
+    SatInterventionReportCreate,
+    SatInterventionReportResponse,
+    SatInterventionReportUpdate,
+)
+from app.modules.sat.schemas.attachment import (  # noqa: F401
+    SatAttachmentCreate,
+    SatAttachmentResponse,
+)
+
 __all__ = [
     # Base
     "BaseSchema",
@@ -368,4 +410,36 @@ __all__ = [
     "ToolCalibrationCreate",
     "ToolCalibrationUpdate",
     "ToolCalibrationResponse",
+    # SAT Service Type
+    "SatServiceTypeCreate",
+    "SatServiceTypeUpdate",
+    "SatServiceTypeResponse",
+    # SAT Specialization
+    "SatSpecializationCreate",
+    "SatSpecializationUpdate",
+    "SatSpecializationResponse",
+    # SAT Customer
+    "SatCustomerCreate",
+    "SatCustomerUpdate",
+    "SatCustomerResponse",
+    # SAT Contact
+    "SatContactCreate",
+    "SatContactUpdate",
+    "SatContactResponse",
+    # SAT Machine
+    "SatMachineCreate",
+    "SatMachineUpdate",
+    "SatMachineResponse",
+    # SAT Assistance
+    "SatAssistanceCreate",
+    "SatAssistanceUpdate",
+    "SatAssistanceResponse",
+    "SatAssistanceStatusUpdate",
+    # SAT Intervention Report
+    "SatInterventionReportCreate",
+    "SatInterventionReportUpdate",
+    "SatInterventionReportResponse",
+    # SAT Attachment
+    "SatAttachmentCreate",
+    "SatAttachmentResponse",
 ]
