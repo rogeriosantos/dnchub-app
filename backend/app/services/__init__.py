@@ -41,6 +41,16 @@ from app.modules.tools.services.tool_case import tool_case_service  # noqa: F401
 from app.modules.tools.services.tool_category import tool_category_service  # noqa: F401
 from app.modules.tools.services.tool_location import tool_location_service  # noqa: F401
 
+# SAT module services
+from app.modules.sat.services.assistance import sat_assistance_service  # noqa: F401
+from app.modules.sat.services.attachment import sat_attachment_service  # noqa: F401
+from app.modules.sat.services.contact import sat_contact_service  # noqa: F401
+from app.modules.sat.services.customer import sat_customer_service  # noqa: F401
+from app.modules.sat.services.intervention_report import sat_intervention_report_service  # noqa: F401
+from app.modules.sat.services.machine import sat_machine_service  # noqa: F401
+from app.modules.sat.services.service_type import sat_service_type_service  # noqa: F401
+from app.modules.sat.services.specialization import sat_specialization_service  # noqa: F401
+
 __all__ = [
     "auth_service",
     "organization_service",
@@ -72,4 +82,12 @@ __all__ = [
     "tool_case_service",
     "tool_assignment_service",
     "tool_calibration_service",
+    "sat_assistance_service",
+    "sat_attachment_service",
+    "sat_contact_service",
+    "sat_customer_service",
+    "sat_intervention_report_service",
+    "sat_machine_service",
+    "sat_service_type_service",
+    "sat_specialization_service",
 ]
