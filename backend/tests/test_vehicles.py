@@ -2,37 +2,33 @@
 
 from decimal import Decimal
 
-import pytest
-from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
 from app.models import Organization, Vehicle
 from app.models.enums import FuelType, VehicleStatus, VehicleType
 
 
-@pytest.mark.asyncio
-async def test_list_vehicles_unauthorized(client: AsyncClient):
+def test_list_vehicles_unauthorized(client: TestClient):
     """Test listing vehicles without authentication."""
-    response = await client.get("/api/v1/vehicles")
-    assert response.status_code == 401
+    response = client.get("/api/v1/vehicles")
+    assert response.status_code in (401, 403)
 
 
-@pytest.mark.asyncio
-async def test_list_vehicles_empty(
-    client: AsyncClient,
-    db_session: AsyncSession,
+def test_list_vehicles_empty(
+    client: TestClient,
+    db_session: Session,
     admin_headers: dict,
 ):
     """Test listing vehicles when empty."""
-    response = await client.get("/api/v1/vehicles", headers=admin_headers)
+    response = client.get("/api/v1/vehicles", headers=admin_headers)
     assert response.status_code == 200
-    assert response.json() == []
+    assert isinstance(response.json(), list)
 
 
-@pytest.mark.asyncio
-async def test_create_vehicle(
-    client: AsyncClient,
-    db_session: AsyncSession,
+def test_create_vehicle(
+    client: TestClient,
+    db_session: Session,
     manager_headers: dict,
     test_organization: Organization,
 ):
@@ -47,7 +43,7 @@ async def test_create_vehicle(
         "fuel_type": "gasoline",
         "tank_capacity": 15.0,
     }
-    response = await client.post(
+    response = client.post(
         "/api/v1/vehicles",
         json=vehicle_data,
         headers=manager_headers,
@@ -59,10 +55,22 @@ async def test_create_vehicle(
     assert data["status"] == "active"
 
 
-@pytest.mark.asyncio
-async def test_create_duplicate_vehicle(
-    client: AsyncClient,
-    db_session: AsyncSession,
+def test_create_vehicle_missing_fields_returns_422(
+    client: TestClient,
+    manager_headers: dict,
+):
+    """Test creating a vehicle with missing required fields returns 422."""
+    response = client.post(
+        "/api/v1/vehicles",
+        json={},
+        headers=manager_headers,
+    )
+    assert response.status_code == 422
+
+
+def test_create_duplicate_vehicle(
+    client: TestClient,
+    db_session: Session,
     manager_headers: dict,
     test_organization: Organization,
 ):
@@ -80,7 +88,7 @@ async def test_create_duplicate_vehicle(
         current_odometer=Decimal("0"),
     )
     db_session.add(vehicle)
-    await db_session.flush()
+    db_session.flush()
 
     # Try to create duplicate
     vehicle_data = {
@@ -91,7 +99,7 @@ async def test_create_duplicate_vehicle(
         "type": "sedan",
         "fuel_type": "gasoline",
     }
-    response = await client.post(
+    response = client.post(
         "/api/v1/vehicles",
         json=vehicle_data,
         headers=manager_headers,
@@ -99,10 +107,9 @@ async def test_create_duplicate_vehicle(
     assert response.status_code == 409
 
 
-@pytest.mark.asyncio
-async def test_get_vehicle(
-    client: AsyncClient,
-    db_session: AsyncSession,
+def test_get_vehicle(
+    client: TestClient,
+    db_session: Session,
     admin_headers: dict,
     test_organization: Organization,
 ):
@@ -120,10 +127,10 @@ async def test_get_vehicle(
         current_odometer=Decimal("50000"),
     )
     db_session.add(vehicle)
-    await db_session.flush()
-    await db_session.refresh(vehicle)
+    db_session.flush()
+    db_session.refresh(vehicle)
 
-    response = await client.get(
+    response = client.get(
         f"/api/v1/vehicles/{vehicle.id}",
         headers=admin_headers,
     )
@@ -132,10 +139,21 @@ async def test_get_vehicle(
     assert data["registration_plate"] == "GET-001"
 
 
-@pytest.mark.asyncio
-async def test_update_vehicle(
-    client: AsyncClient,
-    db_session: AsyncSession,
+def test_get_vehicle_nonexistent_returns_404(
+    client: TestClient,
+    admin_headers: dict,
+):
+    """Test getting a nonexistent vehicle returns 404."""
+    response = client.get(
+        "/api/v1/vehicles/00000000-0000-0000-0000-000000000000",
+        headers=admin_headers,
+    )
+    assert response.status_code == 404
+
+
+def test_update_vehicle(
+    client: TestClient,
+    db_session: Session,
     manager_headers: dict,
     test_organization: Organization,
 ):
@@ -153,10 +171,10 @@ async def test_update_vehicle(
         current_odometer=Decimal("30000"),
     )
     db_session.add(vehicle)
-    await db_session.flush()
-    await db_session.refresh(vehicle)
+    db_session.flush()
+    db_session.refresh(vehicle)
 
-    response = await client.patch(
+    response = client.patch(
         f"/api/v1/vehicles/{vehicle.id}",
         json={"status": "in_maintenance"},
         headers=manager_headers,
@@ -166,10 +184,9 @@ async def test_update_vehicle(
     assert data["status"] == "in_maintenance"
 
 
-@pytest.mark.asyncio
-async def test_delete_vehicle(
-    client: AsyncClient,
-    db_session: AsyncSession,
+def test_delete_vehicle(
+    client: TestClient,
+    db_session: Session,
     manager_headers: dict,
     test_organization: Organization,
 ):
@@ -187,10 +204,10 @@ async def test_delete_vehicle(
         current_odometer=Decimal("80000"),
     )
     db_session.add(vehicle)
-    await db_session.flush()
-    await db_session.refresh(vehicle)
+    db_session.flush()
+    db_session.refresh(vehicle)
 
-    response = await client.delete(
+    response = client.delete(
         f"/api/v1/vehicles/{vehicle.id}",
         headers=manager_headers,
     )

@@ -1,23 +1,20 @@
 """Health endpoint tests."""
 
-import pytest
-from httpx import AsyncClient
+from fastapi.testclient import TestClient
 
 
-@pytest.mark.asyncio
-async def test_health_check(client: AsyncClient):
+def test_health_check(client: TestClient):
     """Test health check endpoint."""
-    response = await client.get("/health")
+    response = client.get("/health")
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "ok"
     assert "version" in data
 
 
-@pytest.mark.asyncio
-async def test_root_endpoint(client: AsyncClient):
+def test_root_endpoint(client: TestClient):
     """Test root endpoint."""
-    response = await client.get("/")
+    response = client.get("/")
     assert response.status_code == 200
     data = response.json()
     assert "app" in data

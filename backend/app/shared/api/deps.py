@@ -112,6 +112,10 @@ FleetManagerDep = Annotated[
     CurrentUser,
     Depends(require_role(UserRole.ADMIN, UserRole.FLEET_MANAGER)),
 ]
+SatManagerDep = Annotated[
+    CurrentUser,
+    Depends(require_role(UserRole.ADMIN, UserRole.SAT_MANAGER)),
+]
 OperatorDep = Annotated[
     CurrentUser,
     Depends(

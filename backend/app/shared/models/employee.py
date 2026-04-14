@@ -77,6 +77,11 @@ class Employee(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
         nullable=False,
         default=False,
     )
+    is_sat_technician: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
 
     # Relationships
     organization: Mapped["Organization"] = relationship(  # type: ignore[name-defined]
@@ -103,6 +108,10 @@ class Employee(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
     )
     tickets: Mapped[list["Ticket"]] = relationship(  # type: ignore[name-defined]
         back_populates="employee",
+        lazy="noload",
+    )
+    sat_specializations: Mapped[list["SatSpecialization"]] = relationship(  # type: ignore[name-defined]
+        secondary="sat_employee_specializations",
         lazy="noload",
     )
 

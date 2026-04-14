@@ -40,6 +40,7 @@ class EmployeeCreate(EmployeeBase):
     cost_center_id: str | None = None
     pin_code: str | None = Field(None, min_length=4, max_length=10)
     is_backoffice: bool = False
+    is_sat_technician: bool = False
 
 
 class EmployeeUpdate(BaseSchema):
@@ -67,6 +68,7 @@ class EmployeeUpdate(BaseSchema):
     cost_center_id: str | None = None
     pin_code: str | None = Field(None, min_length=4, max_length=10)
     is_backoffice: bool | None = None
+    is_sat_technician: bool | None = None
 
 
 class EmployeeResponse(EmployeeBase, TimestampMixin, SoftDeleteMixin):
@@ -82,6 +84,7 @@ class EmployeeResponse(EmployeeBase, TimestampMixin, SoftDeleteMixin):
     fuel_efficiency_score: Decimal | None = None
     safety_score: Decimal | None = None
     is_backoffice: bool = False
+    is_sat_technician: bool = False
 
     @property
     def full_name(self) -> str:

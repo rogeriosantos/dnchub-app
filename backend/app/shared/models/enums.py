@@ -132,6 +132,7 @@ class UserRole(str, Enum):
     OPERATOR = "operator"
     VIEWER = "viewer"
     TECHNICIAN = "technician"
+    SAT_MANAGER = "sat_manager"
 
 
 class DistanceUnit(str, Enum):
@@ -346,3 +347,48 @@ class ConsumableUnit(str, Enum):
     BOTTLE = "bottle"
     TUBE = "tube"
     SHEET = "sheet"
+
+
+class AssistanceStatus(str, Enum):
+    """SAT assistance status enumeration."""
+    REQUESTED = "requested"
+    SCHEDULED = "scheduled"
+    EN_ROUTE = "en_route"
+    ON_SITE = "on_site"
+    COMPLETED = "completed"
+    REVIEWED = "reviewed"
+    CANCELLED = "cancelled"
+
+
+class AssistancePriority(str, Enum):
+    """SAT assistance priority enumeration."""
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
+class MachineType(str, Enum):
+    """SAT machine type enumeration."""
+    CNC = "cnc"
+    SOFTWARE = "software"
+
+
+class ReportStatus(str, Enum):
+    """SAT intervention report status enumeration."""
+    DRAFT = "draft"
+    SUBMITTED = "submitted"
+    APPROVED = "approved"
+
+
+class AttachmentFileType(str, Enum):
+    """SAT attachment file type enumeration."""
+    PHOTO = "photo"
+    AUDIO = "audio"
+    DOCUMENT = "document"
+
+
+class AttachmentSource(str, Enum):
+    """SAT attachment source enumeration."""
+    WHATSAPP = "whatsapp"
+    WEB_UPLOAD = "web_upload"
