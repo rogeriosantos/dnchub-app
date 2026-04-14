@@ -43,8 +43,6 @@ from app.shared.models.enums import (
     ToolAssignmentType,
     ToolCondition,
     ToolStatus,
-    ConsumableStatus,
-    ConsumableUnit,
     TripStatus,
     UserRole,
     VehicleStatus,
