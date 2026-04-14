@@ -17,10 +17,14 @@ from app.schemas import (
     EmployeePinLoginRequest,
     EmployeePinResetRequest,
     EmployeePinResetResponse,
+    ForgotPasswordRequest,
+    ForgotPasswordResponse,
     LoginRequest,
     MessagingChannelsResponse,
     RefreshTokenRequest,
     RegisterRequest,
+    ResetPasswordRequest,
+    ResetPasswordResponse,
     TokenResponse,
 )
 from app.services import auth_service
@@ -152,6 +156,28 @@ def register(
 ) -> TokenResponse:
     """Register a new organization with admin user."""
     return auth_service.register(db, register_data)
+
+
+@router.post("/forgot-password", response_model=ForgotPasswordResponse)
+def forgot_password(
+    request: ForgotPasswordRequest,
+    db: DBDep,
+) -> ForgotPasswordResponse:
+    """Initiate password reset. Always returns 200 to prevent email enumeration."""
+    auth_service.forgot_password(db, request.email)
+    return ForgotPasswordResponse(
+        message="If an account with that email exists, a reset link has been sent."
+    )
+
+
+@router.post("/reset-password", response_model=ResetPasswordResponse)
+def reset_password(
+    request: ResetPasswordRequest,
+    db: DBDep,
+) -> ResetPasswordResponse:
+    """Complete password reset using token from email."""
+    auth_service.reset_password(db, request.token, request.new_password)
+    return ResetPasswordResponse(message="Password has been reset successfully.")
 
 
 @router.get("/messaging-channels", response_model=MessagingChannelsResponse)

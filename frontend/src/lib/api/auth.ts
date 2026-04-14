@@ -259,6 +259,14 @@ export const authService = {
       new_pin: newPin,
     });
   },
+
+  async forgotPassword(email: string): Promise<void> {
+    await apiClient.post("/auth/forgot-password", { email });
+  },
+
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    await apiClient.post("/auth/reset-password", { token, new_password: newPassword });
+  },
 };
 
 export default authService;

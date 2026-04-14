@@ -270,6 +270,63 @@ Your Fuel POS PIN has been successfully changed.
 
         return self.send_whatsapp(phone_number, message)
 
+    def send_password_reset_email(
+        self,
+        to_email: str,
+        user_name: str,
+        reset_url: str,
+    ) -> bool:
+        """Send password reset email to user."""
+        subject = "Reset your DNC Manager password"
+
+        body_text = f"""
+Hello {user_name},
+
+We received a request to reset your DNC Manager password.
+
+Click the link below to set a new password (valid for 1 hour):
+
+{reset_url}
+
+If you did not request this, you can safely ignore this email — your password will not change.
+
+Best regards,
+DNC Manager Team
+"""
+
+        body_html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .header {{ background-color: #f97316; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }}
+        .content {{ background-color: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }}
+        .btn {{ display: inline-block; background-color: #f97316; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; margin: 20px 0; }}
+        .note {{ color: #6b7280; font-size: 13px; margin-top: 20px; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header"><h1>DNC Manager</h1></div>
+        <div class="content">
+            <h2>Hello {user_name},</h2>
+            <p>We received a request to reset your password.</p>
+            <p>
+                <a href="{reset_url}" class="btn">Reset Password</a>
+            </p>
+            <p>This link is valid for <strong>1 hour</strong>.</p>
+            <p class="note">If you did not request a password reset, ignore this email — your password will not change.</p>
+            <p>Best regards,<br>DNC Manager Team</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+        return self.send_email(to_email, subject, body_text, body_html)
+
     def get_available_channels(self) -> list[str]:
         """Get list of available messaging channels."""
         channels = []
